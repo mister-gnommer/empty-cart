@@ -1,14 +1,14 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.0 → 1.0.1
-Modified principles (wording only, no semantic change):
-  - I. Test-First       — dropped list of specific orchestrations; principle now generic
-  - II. Modular Orchestration — capabilities named by role, not by today's tech
-  - III. Observability — "agent step / OCR / Discord" → "module step / user-facing interaction"
-  - IV. Data Privacy & Integrity — "spending/habit data" generalized to "personal data"; secrets no longer enumerated by kind
-  - V. Simplicity & YAGNI — deterministic-preference rule restated without naming TS/LLMs
-  - Constraints        — Discord/OCR demoted to examples; current-scope note added
+Version change: 1.0.1 → 1.1.0
+Modified principles (no semantic change to principle text):
+  - none (Principle IV's cross-user isolation rule now has real consequence)
+Modified constraints:
+  - Removed: "Single-user scope (v1)" — contradicted Principle IV by implying
+    single-user data is fine for now.
+  - Added:  "Multi-user from day one" — data model and contracts MUST assume
+    multiple users from the start; only multi-user *features* may be deferred.
 Added sections: none
 Removed sections: none
 Templates requiring updates:
@@ -108,8 +108,10 @@ amendment when scope changes, but MUST hold until then.
 - **Primary interface**: A chat/bot transport (currently Discord). All
   user-facing flows MUST be reachable through it; other surfaces (CLI, web)
   are optional and MUST NOT become required.
-- **Single-user scope (v1)**: Multi-tenant concerns are out of scope until a
-  user story explicitly introduces them.
+- **Multi-user from day one**: The data model and module contracts MUST assume
+  multiple users may exist; cross-user isolation rules in Principle IV MUST be
+  enforced, not deferred. Multi-user *features* (sharing, administration UI)
+  may still be deferred by user story, but never the underlying isolation.
 - **Language policy**: New orchestration and scripts MUST be written in
   TypeScript unless a module's domain makes another language materially better
   — and that choice MUST be justified in the plan.
@@ -150,4 +152,4 @@ conflicts with it, the constitution wins.
 - **Runtime guidance**: When day-to-day development guidance is needed, prefer
   the AGENTS.md file at the repository root over ad-hoc decisions.
 
-**Version**: 1.0.1 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-07-21
+**Version**: 1.1.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-07-21
