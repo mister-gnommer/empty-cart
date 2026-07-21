@@ -20,9 +20,9 @@ A registered Discord user types the bot's basic command (e.g., an `echo <text>` 
 
 **Acceptance Scenarios**:
 
-1. **Given** the bot is running and online in a Discord server, **When** a user sends the echo command with text "hello world", **Then** the bot posts a message back to that channel containing "hello world".
+1. **Given** the bot is running and online in a Discord server, **When** a user sends the echo command with any arbitrary text payload, **Then** the bot posts a reply in the same channel whose content is that echoed payload (i.e., the response is derived from the user's input, not a fixed or hardcoded message).
 2. **Given** the bot is running, **When** a user sends the echo command with no text argument, **Then** the bot replies with a short, user-facing usage hint instead of crashing.
-3. **Given** the bot is running, **When** a user sends the echo command containing text that exceeds Discord's message length limit, **Then** the bot either truncates with a visible indicator or replies with a clear user-facing error message, never panics.
+3. **Given** the bot is running, **When** a user sends the echo command containing text that exceeds Discord's message length limit, **Then** the bot replies with a clear user-facing error message explaining that the input is too long, rather than truncating silently or panicking.
 
 ---
 
@@ -32,7 +32,7 @@ A single operator deploys the bot to a personal VPS, starts it as a managed back
 
 **Why this priority**: Reliability and operability are the explicit reason for this feature; an echo bot that dies silently or can't be configured would be useless on a VPS. However, it ranks below P1 because it only matters once any interaction works at all.
 
-**Independent Test**: Can be tested by installing the bot as a systemd-managed service on the target VPS, confirming it reads its configuration from environment variables, survives a routine restart, and shuts down within a bounded time on `systemctl stop` without leaving orphaned connections or unflushed logs.
+**Independent Test**: Can be tested by installing the bot as a managed background service on the target VPS using the platform's native process supervisor, confirming it reads its configuration from environment variables, survives a routine restart, and shuts down within a bounded time on a normal stop signal without leaving orphaned connections or unflushed logs.
 
 **Acceptance Scenarios**:
 
