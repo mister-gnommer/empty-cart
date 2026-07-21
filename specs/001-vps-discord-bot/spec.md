@@ -22,7 +22,8 @@ A registered Discord user types the bot's basic command (e.g., an `echo <text>` 
 
 1. **Given** the bot is running and online in a Discord server, **When** a user sends the echo command with any arbitrary text payload, **Then** the bot posts a reply in the same channel whose content is that echoed payload (i.e., the response is derived from the user's input, not a fixed or hardcoded message).
 2. **Given** the bot is running, **When** a user sends the echo command with no text argument, **Then** the bot replies with a short, user-facing usage hint instead of crashing.
-3. **Given** the bot is running, **When** a user sends the echo command containing text that exceeds Discord's message length limit, **Then** the bot replies with a clear user-facing error message explaining that the input is too long, rather than truncating silently or panicking.
+3. **Given** the bot is running, **When** a user sends the echo command containing text that exceeds the platform's message length limit, **Then** the bot replies with a clear user-facing error message explaining that the input is too long, rather than truncating silently or panicking.
+4. **Given** the bot is running, **When** a user sends the echo command whose payload contains a user mention, role mention, `@everyone`, or `@here` token, **Then** the bot's reply does not trigger any new mention notification (no ghost-ping) beyond what the original sender's message already produced in that channel.
 
 ---
 
@@ -64,7 +65,7 @@ The operator wants a fast, side-effect-free way to confirm the bot process is al
 - What happens when the bot receives a command message that is technically valid but from a user without permission (e.g., a spam/abuse case)? Out of scope for v1: no per-user authorization model is required beyond Discord's own channel/server permissions. See Assumptions.
 - What happens when two stop signals arrive in quick succession? The second should be ignored or logged idempotently; the bot must not restart mid-shutdown.
 - What happens when structured logging output is unavailable (e.g., log destination is not writable at startup)? The bot should refuse to start with a clear log entry rather than silently dropping logs.
-- What happens when the echo text contains Discord formatting characters (mentions, markdown)? v1 echoes the visible text content as received; no sanitization or special interpretation is in scope beyond what is needed to avoid the bot mentioning/ghost-pinging unintended users via user-supplied content (handled as a minimal safety measure, not a feature).
+- What happens when the echo text contains Discord formatting characters (mentions, markdown)? Per FR-013, mention tokens (user, role, `@everyone`, `@here`) MUST be neutralized in the echoed reply so the bot cannot be used to ghost-ping users; formatting tokens (markdown) are echoed as-is since they are cosmetic and cannot cross-ping users.
 
 ## Requirements *(mandatory)*
 
@@ -82,6 +83,7 @@ The operator wants a fast, side-effect-free way to confirm the bot process is al
 - **FR-010**: The system MUST ship a deployment document (checked into the repo) covering environment-variable configuration, installing as a managed background service, starting, stopping, viewing logs, and verifying health.
 - **FR-011**: The system MUST report a clear user-facing error (in the originating channel) when the bot cannot fulfill a command due to an internal problem, rather than failing silently or crashing.
 - **FR-012**: The system MUST auto-reconnect to the Discord gateway after transient connection loss without operator intervention, and MUST log each reconnect attempt with a correlation identifier.
+- **FR-013**: The system MUST neutralize any user mention, role mention, `@everyone`, or `@here` token present in the echo command payload before posting the reply, so the bot's reply never triggers a mention notification the original sender's message did not already produce. Plain text and formatting tokens (markdown) MAY be echoed as-is; this requirement applies only to tokens that would cause a user or role to receive a notification/mention-render on the echoed reply.
 
 ### Key Entities *(include if feature involves data)*
 

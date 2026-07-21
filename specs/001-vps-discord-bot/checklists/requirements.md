@@ -31,8 +31,8 @@
 
 ## Notes
 
-- All checklist items pass on the first validation pass.
+- All checklist items pass after the third validation pass (user review added FR-013 mention-neutralization, tightened echo wording, and generalized the P2 supervisor language).
 - Technology is referenced only in the Assumptions section, where recording the project Constitution's TypeScript language policy is explicitly permitted for the planning phase; the body of the spec (FRs, SCs, User Stories) is implementation-agnostic.
 - Out-of-scope items (OCR, image processing, AI-agent behaviour, attachments/embeds/interactive UX, non-Linux deployment) are recorded in Edge Cases and Assumptions so the planner can treat them as explicit scope boundaries.
-- No clarifications needed: all ambiguous choices were resolved with industry/constitution-default assumptions (systemd as supervisor, 5s shutdown budget, JSON structured logs as a reasonable default, no per-user auth model in v1, etc.) and documented in the Assumptions section.
+- No clarifications needed: all ambiguous choices were resolved with industry/constitution-default assumptions (systemd as supervisor, 5s shutdown budget, JSON structured logs as a reasonable default, no per-user auth model in v1, strict mention-neutralization in echoes, etc.) and documented in the Assumptions section.
 - Items marked incomplete would require spec updates before `/speckit.clarify` or `/speckit.plan`; none are present.
