@@ -15,35 +15,38 @@ export function runApp(): Promise<void>;   // the only top-level export invoked 
 
 ## Behavioral contract
 
-1. **Startup order** (each step on failure → exactly one `fatal` log line + `process.exit(1)`):
-   1. `createLogger(config)` — fails fast if stdout is unavailable (Edge Case: log destination unavailable → refuse to start, do not drop logs).
-   2. `loadConfig(process.env, log)` — emits the FR-003 validation line.
+1. **Startup order** (each step on failure → exactly one `fatal` log line + `process.exit(1)`; no explicit flush is needed because `fatal` auto-sync-flushes and SonicBoom's exit handler covers other levels — see `logger.md` §5):
+   0. `bootLog = createBootstrapLogger(process.env)` — pre-validation logger so step 1's fatal path can emit a line before any `Config` exists (`loadConfig` takes no logger; the bootstrap logger breaks the startup-ordering cycle). If stdout is unavailable (Edge Case: log destination unavailable), constructing the bootstrap logger throws; `runApp` catches it, constructs `emergencyLog = createEmergencyLogger()` (writes NDJSON to `process.stderr` — see `logger.md` §7), emits exactly one `log fatal: msg="startup failed"; fields: reason="stdout unavailable"` via `emergencyLog`, and `process.exit(1)`. If `process.stderr` is also unavailable (emergency logger construction throws), `runApp` exits non-zero without logging as a last resort.
+   1. `config = loadConfig(process.env)` — throws `ConfigError` on first invalid field. `runApp` catches it, emits exactly one `log fatal: msg="config validation failed"; fields: env, reason` via `bootLog` (the FR-003 line), and `process.exit(1)`.
+   2. `log = createLogger(config)` — replace the bootstrap logger with the validated one. All subsequent steps use `log`.
    3. Construct `botState = { phase: 'starting', discord: 'disconnected', startedAt: Date.now(), lastStateChangeAt: ... }`.
    4. `startHealthServer(...)` — phase stays `starting` until Discord connects; health already serves `degraded` (process healthy, Discord disconnected) per FR-007 scenario 2.
    5. `createDiscordAdapter(...)`; `adapter.start()`. On `ClientReady` set `phase = 'running'`.
    6. Emit `log info: msg="bot started"; fields: healthAddress, prefix, echoCommandName` (no secrets).
 2. **Signal handling** (installed once, in `runApp`):
    - `SIGTERM` (FR-006) and `SIGINT` (dev convenience) both call the same `requestShutdown(reason)` once-guard.
-   - Second invocation of `requestShutdown` → emit exactly one `log warn: msg="shutdown already in progress"` and return (Edge Case: no restart mid-shutdown).
+   - First invocation → emit one `log info: msg="shutdown requested"; fields: reason` (the event `quickstart.md` step 5 asserts) and proceed to §3.
+   - Second invocation → emit exactly one `log warn: msg="shutdown already in progress"` and return (Edge Case: no restart mid-shutdown).
 3. **Shutdown budget** (`config.shutdownTimeoutMs`, default 5000, SC-003):
    ```
    set botState.phase = 'shutting-down'        // health flips to 503 shutting-down immediately
-   stop accepting new Discord events            // adapter removes listeners / gate
+   adapter.stop() commits to: remove MessageCreate listener + gate stopping flag (see discord.md §7)
    race(
      Promise.all([ adapter.stop(), healthServer.stop() ]),
      timeout(shutdownTimeoutMs)
    )
-   logger.flush()
+   log fatal|warn line (see below)              // fatal auto-sync-flushes; no explicit flush call
    process.exit(exitOk ? 0 : 1)
    ```
-   On budget timeout: emit `log warn: msg="shutdown budget exceeded"; fields: phase` and exit `1`.
-4. **Log flushing**: `logger.flush()` MUST be awaited before `process.exit` so buffered NDJSON reaches stdout (guarantees SC-006 can scan a complete log tail). The wire-format shape of every log event above is owned by `contracts/logger.md`; this contract specifies only the events' contents.
-5. **Exit discipline**: `runApp` is the only module that may call `process.exit`. All other modules communicate failure by throwing or by setting `botState` (not by exiting).
+   On budget timeout: emit `log warn: msg="shutdown budget exceeded"; fields: phase` and exit `1` (SonicBoom's `process.on('exit')` handler flushes the buffer before the process terminates; see `logger.md` §1).
+4. **No explicit flush**: `runApp` MUST NOT call `logger.flush()` (callback-based, returns `undefined`, not a Promise — see `logger.md` §5). Pino's default destination (SonicBoom) flushes its buffer on `process.exit` via its `process.on('exit')` handler, so every log line (including the last `warn`/`fatal` before exit) reaches stdout before the process terminates. If a future feature introduces a non-SonicBoom destination, that feature MUST amend `logger.md` and this contract with a real drain primitive.
+5. **Exit discipline**: `runApp` is the only module that may call `process.exit`. All other modules communicate failure by throwing or by setting `botState` (not by exiting). The startup-fatal path (§1 step 1) and shutdown path (§3) are the only `process.exit` call sites.
 
 ## Test obligations
 
-- Contract: with all child modules mocked, a `SIGTERM` dispatch races and resolves within a (test-short) budget, calls `adapter.stop()`, `healthServer.stop()`, `logger.flush()`, and `process.exit(0)`.
+- Contract: with all child modules mocked, a `SIGTERM` dispatch emits `log info: msg="shutdown requested"; fields: reason="SIGTERM"`, races and resolves within a (test-short) budget, calls `adapter.stop()`, `healthServer.stop()`, and `process.exit(0)` — and does NOT call `logger.flush()`.
 - Contract: second `SIGTERM` during shutdown logs exactly one `warn` with `msg="shutdown already in progress"` and does not re-enter shutdown (Edge Case idempotency).
 - Contract: budget exhaustion → exactly one `warn` with `msg="shutdown budget exceeded"` + `process.exit(1)` (bounded, non-hanging).
-- Contract: a child throwing on startup (e.g. health bind failure) → exactly one `fatal` log line naming the subsystem in `msg` and `process.exit(1)`.
+- Contract: `loadConfig` throwing `ConfigError` → exactly one `fatal` with `msg="config validation failed"`, `fields: env, reason` taken from the error, `bootLog` used (not a validated logger), and `process.exit(1)`.
+- Contract: a child throwing on a post-config startup step (e.g. health bind failure) → exactly one `fatal` log line naming the subsystem in `msg` and `process.exit(1)`.
 - (Integrating against the real VPS is a `quickstart.md` manual step, not an automated test — Constitution "validate on VPS".)

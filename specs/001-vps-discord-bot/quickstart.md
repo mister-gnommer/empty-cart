@@ -2,7 +2,7 @@
 
 **Spec**: `specs/001-vps-discord-bot/spec.md` · **Research**: `specs/001-vps-discord-bot/research.md` · **Data model**: `specs/001-vps-discord-bot/data-model.md` · **Contracts**: `specs/001-vps-discord-bot/contracts/`
 
-This is a **validation guide**, not the deployment runbook. For installing as a managed background service on the VPS, see `docs/deployment.md` (FR-010). Here we prove the feature works end-to-end without a live Discord account first, then with one.
+This is a **validation guide**, not the deployment runbook. For installing as a managed background service on the VPS, see `docs/deployment.md` (FR-010; created in Phase 2 / implementation). Here we prove the feature works end-to-end without a live Discord account first, then with one.
 
 ---
 
@@ -50,7 +50,7 @@ Expected: all unit + contract + integration suites green. In particular these ex
 | `tests/unit/config.*` | every missing/malformed env var → exactly one `fatal` log line naming it + non-zero exit | FR-003 |
 | `tests/contract/discord.*` | every `channel.send` carries `allowedMentions: { parse: [], users: [], roles: [] }` | FR-013 |
 | `tests/contract/health.*` | full `phase × discord` matrix over real HTTP; `shutting-down` returns 503 (no stale healthy) | FR-007, Story 3 #1–#3 |
-| `tests/contract/lifecycle.*` | SIGTERM completes within budget, `logger.flush()` called, exit 0; second SIGTERM idempotent; budget-exceeded → exit 1 | FR-006, SC-003, Edge Cases |
+| `tests/contract/lifecycle.*` | SIGTERM completes within budget, exit 0 (no `logger.flush()` called — SonicBoom exit-flush handles it, see `logger.md` §5), `msg="shutdown requested"` emitted; second SIGTERM idempotent; budget-exceeded → exit 1 | FR-006, SC-003, Edge Cases |
 | `tests/integration/health.*` | round trips over a real in-process `node:http` server within 1 s | SC-004 |
 | `tests/integration/echo.*` | hand-driven `Events.MessageCreate` → echoed reply on a stubbed `channel.send`; correlation id on every log line of the call | FR-001, FR-004 (Principle III) |
 

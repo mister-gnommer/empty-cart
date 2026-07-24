@@ -19,7 +19,7 @@ Filled from `research.md` (Phase 0). The few items initially flagged `NEEDS CLAR
 - `pino@10.3.1` — structured NDJSON logger with `redact`. *(NEEDS CLARIFICATION → resolved R3)*
 - `zod@4.4.3` — env-config validation with inferred typed `Config`. *(NEEDS CLARIFICATION → resolved R5)*
 - `vitest@4.1.10` — test runner (unit + contract + integration). *(NEEDS CLARIFICATION → resolved R7)*
-- `tsx@4.23.1`, `@types/node@26.1.1` — dev only.
+- `tsx@4.23.1`, `@types/node@24.13.3` (pinned to the Node 24 LTS line, matching the runtime) — dev only.
 All versions pinned exactly in `package.json` (no `^`/`~`), per AGENTS.md.
 
 **Health surface**: a built-in `node:http` server on `127.0.0.1:8081` answering `GET /healthz`, plus an optional `npm run health` CLI wrapper. *(NEEDS CLARIFICATION → resolved R4)*
@@ -91,24 +91,17 @@ src/
 │   └── types.ts          # BotState, ProcessPhase, ConnectionState, Config (type), UserCommand, EchoResult, HealthStatus
 ├── config/
 │   ├── schema.ts         # zod schema
-│   ├── load-config.ts    # loadConfig(env, log): Config  → throws ConfigError
-│   └── config.test.ts    # (unit)
+│   └── load-config.ts    # loadConfig(env): Config  → throws ConfigError
 ├── logger/
-│   ├── create-logger.ts  # createLogger(config): Logger (redact.paths)
-│   └── logger.test.ts    # (unit) redaction + childFor correlation
+│   └── create-logger.ts  # createLogger(config): Logger (redact.paths)
 ├── echo/
-│   ├── handle-echo.ts    # pure handleEchoCommand(cmd, config): EchoResult
-│   └── echo.test.ts      # (unit) — RED first; FR-001/FR-008/FR-013
+│   └── handle-echo.ts    # pure handleEchoCommand(cmd, config): EchoResult
 ├── discord/
-│   ├── adapter.ts        # createDiscordAdapter(deps): DiscordAdapter  (only importer of discord.js)
-│   └── adapter.contract.test.ts
+│   └── adapter.ts        # createDiscordAdapter(deps): DiscordAdapter  (only importer of discord.js)
 ├── health/
-│   ├── server.ts         # startHealthServer(deps); stop(); mapHealthStatus(state)
-│   ├── server.unit.test.ts
-│   └── server.integration.test.ts
+│   └── server.ts         # startHealthServer(deps); stop(); mapHealthStatus(state)
 ├── lifecycle/
-│   ├── run-app.ts        # runApp(): wiring + SIGTERM/SIGINT + bounded shutdown
-│   └── lifecycle.contract.test.ts
+│   └── run-app.ts        # runApp(): wiring + SIGTERM/SIGINT + bounded shutdown
 ├── app/
 │   └── index.ts          # `node dist/index.js` entry: runApp()
 docs/
@@ -137,8 +130,9 @@ eslint.config.*           # flat config; `no-restricted-paths` import-boundary r
 | Choice | Why needed | Simpler alternative rejected because |
 |---|---|---|
 | `zod@4.4.3` for env validation | FR-003 requires rejecting "missing **or malformed**" with a logged field name on the first offense; `Config` must be statically typed for Principle II contracts. | Hand-written `if (env.X == null) throw` loses enum/range validation and the inferred `Config` type, and re-introduces the integer-parse footgun; the lib is reused for inbound-arg schemas so it is one dep, not two. |
-| `pino@10.3.1` (vs console+JSON.stringify) | Secret redaction (`redact.paths`) must be enforced at the logger boundary, not by discipline (FR-005/SC-006). Child-logger `correlationId` binding and `flush()` on shutdown are contract requirements. | `console.log` hand-rolling redacts + correlation + flush by hand — exactly the "secret logged by accident" footgun Principle IV forbids, and re-implements what pino already ships. |
+| `pino@10.3.1` (vs console+JSON.stringify) | Secret redaction (`redact.paths`) must be enforced at the logger boundary, not by discipline (FR-005/SC-006). Child-logger `correlationId` binding and SonicBoom's exit-flush guarantee (no explicit `flush()` call needed — see `contracts/logger.md` §1/§5) are contract requirements. | `console.log` hand-rolling redacts + correlation + "remember to flush" by hand — exactly the "secret logged by accident" footgun Principle IV forbids, and re-implements what pino already ships. |
 | ESLint `no-restricted-paths` import-boundary rule (research R10) | Principle II's "no module may know about the user-facing transport except the transport adapter" must hold as OCR + multiple langgraph agents land — review-only enforcement would not survive that growth. The rule runs in CI and is extensible per library (one entry per future module/lib pair). | *No rule, rely on reviews* (simpler) was rejected as insufficient against the operator's stated growth trajectory; *domain subdirs now* and *pnpm workspaces* (also rejected, see R10) bike-shed category names before the features that justify them exist and/or pay hard-package-boundary overhead before there is any independently-consumable artifact. The static rule gives the same protection for one config block. |
+| Bounded `channel.send` retry loop in `discord` adapter (`contracts/discord.md` §6) | No spec FR or edge case asks for REST-level retry (FR-012 covers gateway-level reconnect; FR-011 covers handler errors). Added during design as defensive engineering for transient Discord REST 5xx / network blips on the path of a single reply, with an SC-001 exclusion (see `contracts/discord.md` §3 — SC-001's 2 s bound does not apply during §6 retry). | *No retry, log + stop* (simpler) was rejected because the operator's stated growth trajectory (User Story 2's "runs unattended for long periods") implies occasional transient transport failures that a bounded retry absorbs without operator intervention; the retry loop is bounded (≤3 attempts, cancellable by `SIGTERM`), so it cannot compromise the shutdown budget or block indefinitely. Recorded here as a Principle V crossing — no user story in this feature explicitly requires it; revisit when a future spec's user story demands REST resilience ergonomics. |
 
 No other complexity additions: no ORM/DB, no HTTP framework (`node:http`), no Docker, no monorepo, no production pretty-printer.
 

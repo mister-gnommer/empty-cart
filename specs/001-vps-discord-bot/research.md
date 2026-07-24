@@ -21,7 +21,7 @@ This document resolves every `NEEDS CLARIFICATION` in the plan's Technical Conte
 | Package | Version | Role |
 |---|---|---|
 | typescript | 7.0.2 | compiler (dev) |
-| @types/node | 26.1.1 | Node typings (dev) |
+| @types/node | 24.13.3 | Node typings (dev) — pinned to the Node 24 LTS line (the deployment runtime), not `latest` (which is @types/node@26 tracking Node 26). Mismatched types would let code reference Node 26-only APIs that fail at runtime on Node 24. |
 | tsx | 4.23.1 | dev runner (dev) |
 | discord.js | 14.27.0 | Discord gateway + REST (prod) |
 | pino | 10.3.1 | structured logger (prod) |
@@ -32,7 +32,7 @@ This document resolves every `NEEDS CLARIFICATION` in the plan's Technical Conte
 
 ## R2. Discord library
 
-**Decision**: `discord.js@14.27.0` with the `Guilds` + `MessageContent` (privileged) gateway intents, listening to `Events.MessageCreate`.
+**Decision**: `discord.js@14.27.0` with the `Guilds` + `GuildMessages` + `MessageContent` (privileged) gateway intents, listening to `Events.MessageCreate`. `GuildMessages` is required to receive `Events.MessageCreate` in guilds; `MessageContent` is privileged and required to read message text for messages that do not mention the client. See `contracts/discord.md` §1 for the authoritative intent set.
 
 **Rationale**: discord.js is the canonical, actively maintained TS-native Discord library; it owns the only module the Constitution allows to know about the user-facing transport (Principle II). It provides the primitives every spec requirement maps onto:
 
@@ -61,7 +61,7 @@ redact.paths = ["discordToken", "token", "*.token", "config.discordToken", ...]
 redact.censor = "[Redacted]"
 ```
 
-A `redact.remove` option is **not** used: keeping the censored key makes a misrouted secret visible-as-redacted in self-completing audit (a missing `discordToken` key after a refactor is a louder signal than a present-and-redacted one). `logger.flush()` is called in the shutdown path so buffered logs reach stdout before exit code 0 (FR-006).
+A `redact.remove` option is **not** used: keeping the censored key makes a misrouted secret visible-as-redacted in self-completing audit (a missing `discordToken` key after a refactor is a louder signal than a present-and-redacted one). With pino's default destination (SonicBoom, `sync: false`), SonicBoom registers a `process.on('exit')` handler that synchronously flushes its buffer before the process terminates, so every log line reaches stdout before `process.exit` completes. `logger.fatal` additionally auto-sync-flushes, covering the startup-fatal and shutdown-fatal paths. The contracts therefore forbid `await logger.flush()` (it returns `undefined`, not a Promise) and rely on SonicBoom's exit-flush + `fatal` for the "logs reach stdout before exit" guarantee (FR-006). If a non-SonicBoom destination is introduced later, that feature must amend the logger contract with a real drain primitive.
 
 **Alternatives considered**:
 - *Winston*: heavier, slower, transport model adds complexity; Pino is strictly simpler for one stdout sink.
@@ -129,7 +129,7 @@ Bounded response within 1 s (SC-004) is trivial — the handler does no I/O.
 3. awaits, in parallel with `Promise.race` against a `SHUTDOWN_TIMEOUT_MS` timer:
    - `discordAdapter.stop()` → `client.destroy()` (clean WS close),
    - `healthServer.stop()` (stop accepting health probes),
-4. calls `logger.flush()` so buffered NDJSON reaches stdout,
+4. emits the final `fatal`/`warn` log line (pino's `fatal` auto-sync-flushes; SonicBoom's `process.on('exit')` handler flushes the buffer for non-fatal lines before the process terminates — no explicit `logger.flush()` call needed, and `flush()` returns `undefined` not a Promise),
 5. `process.exit(0)`.
 
 If the budget elapses, we log a `warn` with the unmet step, then `process.exit(1)` (still bounded; the 95%-within-5 s target SC-003 is met by the happy path, and a failure surfaces noisily rather than hanging the service manager). A second signal is idempotent: a `shuttingDown` boolean short-circuits further handlers and logs one `warn`.

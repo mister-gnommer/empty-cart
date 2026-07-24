@@ -38,4 +38,4 @@ export function handleEchoCommand(
 - `echoMaxLength + 1` chars → `too-long` with the limit stated.
 - payload containing `<@123>`, `@everyone`, `<@&9>`, `@here`, raw `@user` → `echoed` with `reply` **unchanged** and `neutralizedMentions: true` (the neutralization guarantee is asserted here even though the actual `allowedMentions` enforcement is tested in the discord adapter contract test).
 - markdown payload (`**bold**`, `||spoiler||`, `>quote`) → `echoed` with `reply` unchanged.
-- two distinct `cmd.userId`-shaped inputs in the same test process → outputs are independent (isolation sanity check; no cross-call leakage, since there is no module state).
+- two consecutive calls with different `cmd.args` → outputs are independent (isolation sanity check proving no module state leaks between calls; the function takes only `args`, so multi-user isolation is honored structurally at the type level). A separate contract test in `tests/contract/echo.*` asserts `handleEchoCommand` references no module-scoped mutable variable (static import-scan for `let`/`var` at module scope).

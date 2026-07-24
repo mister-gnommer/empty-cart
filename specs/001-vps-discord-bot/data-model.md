@@ -21,7 +21,7 @@ TypeScript types live in `src/shared/types.ts`; the shapes below are the authori
 | `logLevel` | `'trace'\|'debug'\|'info'\|'warn'\|'error'\|'fatal'` | enum | no | `LOG_LEVEL` (default `info`) |
 | `commandPrefix` | `string` | 1–4 chars, no whitespace | no | `COMMAND_PREFIX` (default `!`) |
 | `echoCommandName` | `string` | non-empty, lowercase | no | `ECHO_COMMAND_NAME` (default `echo`) |
-| `echoMaxLength` | `number` | integer, 1900 ≤ x ≤ 1900-discretion; min 1 | no | `ECHO_MAX_LENGTH` (default `1900`) |
+| `echoMaxLength` | `number` | integer, 1 ≤ x ≤ 1900 | no | `ECHO_MAX_LENGTH` (default `1900`) |
 | `shutdownTimeoutMs` | `number` | integer, 1000–30000 | no | `SHUTDOWN_TIMEOUT_MS` (default `5000`) |
 | `healthHost` | `string` | IPv4 literal | no | `HEALTH_HOST` (default `127.0.0.1`) |
 | `healthPort` | `number` | integer, 1–65535 | no | `HEALTH_PORT` (default `8081`) |
@@ -61,6 +61,8 @@ stateDiagram-v2
     shutting_down --> shutting_down: second signal (idempotent warn, no transition)
 ```
 
+> Notation note: `shutting_down` (underscore) is the mermaid **parser-safe state ID**; the `state "shutting-down" as ...` clause makes the **rendered label** `shutting-down` (hyphen), matching the TS enum value. The IDs in the source are not user-visible.
+
 Phases: `starting` | `running` | `shutting-down` | `stopped`.
 **Rules**: `shutting-down` is a one-way gate (Edge Case: second stop signal is logged idempotently, no restart). `stopped` is terminal and immediately followed by `process.exit`.
 
@@ -88,11 +90,10 @@ Phases: `disconnected` (initial, pre-login) | `connected` | `reconnecting` | `de
 
 ```typescript
 type UserCommand = {
-  correlationId: string;          // ULID or crypto.randomUUID(); bound to the pino child logger
+  correlationId: string;          // crypto.randomUUID(); bound to the pino child logger
   userId: string;                 // message.author.id            (multi-user-scoped, Principle IV)
   guildId: string | null;          // message.guild?.id ?? null
   channelId: string;              // message.channel.id
-  authorIsBot: boolean;            // ignore bot-issued echoes
   rawContent: string;             // message.content verbatim
   commandName: string;             // matched command, lowercase
   args: string;                   // text after "<prefix><command> ", may be ""
@@ -101,7 +102,7 @@ type UserCommand = {
 ```
 
 **Validation / acceptance mapping** (from spec §User Story 1):
-- `authorIsBot === true` → ignore (never echo bots).
+- `message.author.bot === true` → ignore at the message level, before constructing a `UserCommand` (never echo bots).
 - Does not start with `commandPrefix` → ignore (not a command).
 - `commandName !== echoCommandName` → out of v1 scope; ignore.
 - `args === ""` → FR/Story1 #2: reply with usage hint, do **not** call echo core; status `usage-hint`.
@@ -191,4 +192,4 @@ All arrows are typed function calls across module boundaries (Principle II "inte
 
 ## Multi-user isolation note (Constitution Constraint)
 
-`UserCommand.userId` / `guildId` are **request-scoped inputs** carried through the echo handler, never promoted to process-global state. The echo core is a pure function of `(UserCommand, Config)` and cannot access another user's data — both because there is no other-user data (FR-008: nothing is persisted) and because the contract forbids it (see `contracts/echo-command.md`). This satisfies "user-scoped, cross-user access forbidden by design" at the contract level even though v1 has no multi-user *feature*.
+`UserCommand.userId` / `guildId` are **request-scoped inputs** carried through the echo handler, never promoted to process-global state. The echo core is a pure function of `(UserCommand, Config)` and cannot access another user's data — both because there is no other-user data (FR-008: nothing is persisted) and because the contract forbids it (see `contracts/echo.md`). This satisfies "user-scoped, cross-user access forbidden by design" at the contract level even though v1 has no multi-user *feature*.

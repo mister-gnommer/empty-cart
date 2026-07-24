@@ -41,7 +41,7 @@ export function mapHealthStatus(state: BotState, now?: number): { httpStatus: nu
 
 4. **No side effects, no Discord round-trip** (FR-007): the handler only reads `botState` and serializes JSON.
 5. **Shutdown transitions are reflected** (User Story 3 #3): the moment `lifecycle` flips `botState.phase` to `shutting-down`, the very next `/healthz` returns `503 shutting-down` — verified by an integration test that flips phase between requests.
-6. `stop()` closes the http server (unceremoniously — it returns once `server.close()` callbacks drain); safe to call during shutdown budget.
+6. `stop()` is bounded and safe to call during the shutdown budget: it calls `server.closeAllConnections()` (available on `http.Server` since Node 18.2; this module creates its server via `node:http`, so the instance is an `http.Server` — `net.Server` does NOT expose this method) to abort any in-flight `/healthz` request, then `server.close()` to stop accepting new connections. `stop()` resolves once the listening socket is closed; because `closeAllConnections()` is called first, no in-flight request can keep the socket past the shutdown budget (`server.close()` alone only stops new connections and leaves in-flight queries to drain naturally, which could exceed the 5 s SC-003 budget under a slow/stuck probe).
 7. On bind failure (port in use / permission denied) `startHealthServer` MUST throw a single `Error` with the OS error code, so `lifecycle` can log exactly one `fatal` and exit non-zero (mirrors FR-003 discipline for the health subsystem).
 
 ## Test obligations
