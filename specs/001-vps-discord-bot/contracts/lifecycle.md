@@ -35,10 +35,11 @@ export function runApp(): Promise<void>;   // the only top-level export invoked 
      Promise.all([ adapter.stop(), healthServer.stop() ]),
      timeout(shutdownTimeoutMs)
    )
-   log fatal|warn line (see below)              // fatal auto-sync-flushes; no explicit flush call
+   if (timedOut) emit `log warn: msg="shutdown budget exceeded"; fields: phase`
+   else emit `log info: msg="shutdown complete"; fields: phase`   // success-path completion log (FR-004 "shutdown completion")
    process.exit(exitOk ? 0 : 1)
    ```
-   On budget timeout: emit `log warn: msg="shutdown budget exceeded"; fields: phase` and exit `1` (SonicBoom's `process.on('exit')` handler flushes the buffer before the process terminates; see `logger.md` §1).
+   On budget timeout: emit `log warn: msg="shutdown budget exceeded"; fields: phase` and exit `1` (SonicBoom's `process.on('exit')` handler flushes the buffer before the process terminates; see `logger.md` §1). On success: emit `log info: msg="shutdown complete"; fields: phase` (the FR-004 "shutdown completion" event — distinct from §2's `shutdown requested` trigger and §discord.md's `discord disconnected` adapter event) then `process.exit(0)`. The `fatal` auto-sync-flush + SonicBoom's exit handler cover both paths without an explicit `flush()` call.
 4. **No explicit flush**: `runApp` MUST NOT call `logger.flush()` (callback-based, returns `undefined`, not a Promise — see `logger.md` §5). Pino's default destination (SonicBoom) flushes its buffer on `process.exit` via its `process.on('exit')` handler, so every log line (including the last `warn`/`fatal` before exit) reaches stdout before the process terminates. If a future feature introduces a non-SonicBoom destination, that feature MUST amend `logger.md` and this contract with a real drain primitive.
 5. **Exit discipline**: `runApp` is the only module that may call `process.exit`. All other modules communicate failure by throwing or by setting `botState` (not by exiting). The startup-fatal path (§1 step 1) and shutdown path (§3) are the only `process.exit` call sites.
 
@@ -47,6 +48,7 @@ export function runApp(): Promise<void>;   // the only top-level export invoked 
 - Contract: with all child modules mocked, a `SIGTERM` dispatch emits `log info: msg="shutdown requested"; fields: reason="SIGTERM"`, races and resolves within a (test-short) budget, calls `adapter.stop()`, `healthServer.stop()`, and `process.exit(0)` — and does NOT call `logger.flush()`.
 - Contract: second `SIGTERM` during shutdown logs exactly one `warn` with `msg="shutdown already in progress"` and does not re-enter shutdown (Edge Case idempotency).
 - Contract: budget exhaustion → exactly one `warn` with `msg="shutdown budget exceeded"` + `process.exit(1)` (bounded, non-hanging).
+- Contract: success-path shutdown completes within the (test-short) budget → exactly one `info` with `msg="shutdown complete"; fields: phase="shutting-down"` then `process.exit(0)` (FR-004 "shutdown completion" event; distinct from `shutdown requested` and the adapter's `discord disconnected` line).
 - Contract: `loadConfig` throwing `ConfigError` → exactly one `fatal` with `msg="config validation failed"`, `fields: env, reason` taken from the error, `bootLog` used (not a validated logger), and `process.exit(1)`.
 - Contract: a child throwing on a post-config startup step (e.g. health bind failure) → exactly one `fatal` log line naming the subsystem in `msg` and `process.exit(1)`.
 - (Integrating against the real VPS is a `quickstart.md` manual step, not an automated test — Constitution "validate on VPS".)

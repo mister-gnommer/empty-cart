@@ -2,7 +2,7 @@
 
 **Spec**: `specs/001-vps-discord-bot/spec.md` · **Research**: `specs/001-vps-discord-bot/research.md` · **Data model**: `specs/001-vps-discord-bot/data-model.md` · **Contracts**: `specs/001-vps-discord-bot/contracts/`
 
-This is a **validation guide**, not the deployment runbook. For installing as a managed background service on the VPS, see `docs/deployment.md` (FR-010; created in Phase 2 / implementation). Here we prove the feature works end-to-end without a live Discord account first, then with one.
+This is a **validation guide**, not the deployment runbook. For installing as a managed background service on the VPS, see `docs/deployment.md` (FR-010; scaffold created during the spec/plan phase, finalized by task T021). Here we prove the feature works end-to-end without a live Discord account first, then with one.
 
 ---
 
@@ -46,13 +46,15 @@ Expected: all unit + contract + integration suites green. In particular these ex
 
 | Suite | Proves | Spec ref |
 |---|---|---|
-| `tests/unit/echo.*` | empty→usage-hint, too-long→error boundary, mention payload echoed unchanged with `neutralizedMentions:true` | Story 1 #1–#4, FR-001, FR-013 |
+| `tests/unit/echo.*` | empty→usage-hint, too-long→error boundary, mention payload echoed unchanged with `transportShouldNeutralizeMentions:true` | Story 1 #1–#4, FR-001, FR-013 |
 | `tests/unit/config.*` | every missing/malformed env var → exactly one `fatal` log line naming it + non-zero exit | FR-003 |
 | `tests/contract/discord.*` | every `channel.send` carries `allowedMentions: { parse: [], users: [], roles: [] }` | FR-013 |
 | `tests/contract/health.*` | full `phase × discord` matrix over real HTTP; `shutting-down` returns 503 (no stale healthy) | FR-007, Story 3 #1–#3 |
 | `tests/contract/lifecycle.*` | SIGTERM completes within budget, exit 0 (no `logger.flush()` called — SonicBoom exit-flush handles it, see `logger.md` §5), `msg="shutdown requested"` emitted; second SIGTERM idempotent; budget-exceeded → exit 1 | FR-006, SC-003, Edge Cases |
 | `tests/integration/health.*` | round trips over a real in-process `node:http` server within 1 s | SC-004 |
 | `tests/integration/echo.*` | hand-driven `Events.MessageCreate` → echoed reply on a stubbed `channel.send`; correlation id on every log line of the call | FR-001, FR-004 (Principle III) |
+
+> **SC-001 / SC-003 / SC-002 timing/statistical bounds are NOT asserted by the automated suites.** The contracts pin SC-001's 2 s latency to the discord adapter boundary (`contracts/discord.md` §3), SC-003's 5 s shutdown budget to the lifecycle §3 race, and SC-004's 1 s response to the health mapper; the automated tests assert *correctness* and *single-shot* budget compliance, not statistical confidence. The 2 s echo latency under load, the 95 %-within-5 s shutdown trials, and the 7-day unattended uptime (SC-002) are inherently **manual VPS soak** validations — performed via the "Live-gateway smoke" step below and a multi-day production observation. Documented here so reviewers don't expect an automated suite to claim SC-002.
 
 SC-006 (zero secrets in logs) is mechanically enforced by the logger's `redact.paths` — see `tests/unit/logger.redaction.*` and run the post-run scan in the live-gateway step below.
 
@@ -95,4 +97,4 @@ BOT_PID=$!
 
 ## What this guide intentionally omits
 
-Per the plan template's quickstart rules: no full implementation bodies, no migrations, no full test suites. Concrete steps and code live in `tasks.md` (Phase 2) and the implementation; the systemd unit file, log-rotation, and VPS install steps live in `docs/deployment.md`.
+Per the plan template's quickstart rules: no full implementation bodies, no migrations, no full test suites. Concrete steps and code live in `tasks.md` (Phase 2) and the implementation; the systemd unit file, log-rotation, and VPS install steps live in `docs/deployment.md` (scaffolded in the spec/plan phase; finalized by T021).

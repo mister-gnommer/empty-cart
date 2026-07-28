@@ -200,28 +200,45 @@ Confirming the user description's exclusions, to keep YAGNI honest in the plan:
 
 **How enforcement works** (one config block, no runtime cost):
 
-```text
-// .eslintrc excerpt (illustrative — concrete syntax chosen in tasks.md)
-{
-  "rules": {
-    "no-restricted-paths": ["error", {
-      "zones": [
-        { "target":      "src/(?!(discord)/)(.*)",
-          "from":        "discord.js",
-          "message":     "Only src/discord may import discord.js (Principle II)." },
-        { "target":      "src/(?!(config|logger)/)(.*)",
-          "from":        "pino",
-          "message":     "Only src/config and src/logger may import pino." },
-        { "target":      "src/(?!(config)/)(.*)",
-          "from":        "zod",
-          "message":     "Only src/config may import zod (keep schema ownership local)." }
-      ]
-    }]
-  }
-}
+The concrete ESLint flat-config syntax pinned here (plan phase) is the version task T004 writes verbatim into `eslint.config.js` — no further design is deferred to the tasks phase:
+
+```javascript
+// eslint.config.js (flat config — task T004 copies this verbatim)
+import noRestrictedPaths from 'eslint-plugin-no-restricted-paths';
+
+export default [
+  {
+    plugins: { 'no-restricted-paths': noRestrictedPaths },
+    rules: {
+      'no-restricted-paths/no-restricted-paths': ['error', {
+        zones: [
+          {
+            target: ['!src/discord/**'],
+            from:  ['discord.js'],
+            message: 'Only src/discord may import discord.js (Constitution Principle II).',
+          },
+          {
+            target: ['!src/config/**', '!src/logger/**'],
+            from:  ['pino'],
+            message: 'Only src/config and src/logger may import pino.',
+          },
+          {
+            target: ['!src/config/**'],
+            from:  ['zod'],
+            message: 'Only src/config may import zod (keep schema ownership local).',
+          },
+        ],
+      }],
+    },
+  },
+];
 ```
 
-The rule runs in CI (`npm test` invokes `eslint --max-warnings 0`), so a future agent module that tries to import `discord.js` fails the build. The matrix is extensible: when OCR/agents arrive, append rules like "only `src/<agent>/` may import `@langchain/*` or `tesseract.js`".
+Notes:
+- ESLint flat config (v9+) uses the `target: ['!src/discord/**']` negation form to mean "applies to every file NOT matching `src/discord/**`". The legacy `.eslintrc` `target: 'src/(?!(discord)/)(.*)'` regex form (illustrated in earlier drafts of this entry) is replaced by the flat-config array form above — verified against `eslint-plugin-no-restricted-paths` README.
+- New entries for future modules (`@langchain/*` to `src/agent-foo/`, `tesseract.js` to `src/ocr/`) are added by appending one zone each — no takss-phase design decision left; the rule shape is fixed.
+
+The rule runs in CI (`npm run lint` invokes `eslint --max-warnings 0`), so a future agent module that tries to import `discord.js` fails the build. The matrix is extensible: when OCR/agents arrive, append rules like "only `src/<agent>/` may import `@langchain/*` or `tesseract.js`".
 
 **Cost**: ~one config file + one CI invocation. **Zero** restructuring risk, **zero** opinion-prediction about future folder categories (capability-vs-agent-vs-tool focus), and **zero** build/copmatrix overhead. It survives any future folder reorg because the rules are path-pattern-based.
 

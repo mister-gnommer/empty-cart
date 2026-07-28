@@ -33,10 +33,10 @@ All versions pinned exactly in `package.json` (no `^`/`~`), per AGENTS.md.
 **Project Type**: Long-running background service / bot daemon (one process).
 
 **Performance Goals**:
-- Echo reply within 2 s at normal VPS load (SC-001).
-- Graceful shutdown within 5 s and exit 0 in ≥95 % of trials (SC-003 / FR-006).
-- Health probe responds within 1 s, 100 % healthy over a 1-hour 10 s polling (SC-004).
-- 7-day unattended uptime with no operator intervention (SC-002).
+- Echo reply within 2 s at normal VPS load (SC-001) — see `contracts/discord.md` §3 Latency bound; automated integration tests assert correctness only, the 2 s timing bound is a manual `quickstart.md` "Live-gateway smoke" verification.
+- Graceful shutdown within 5 s and exit 0 in ≥95 % of trials (SC-003 / FR-006) — automated T018 contract tests assert single-shot budget compliance; the 95 %-statistical confidence is a manual VPS soak validation, not an automated suite (see `quickstart.md`).
+- Health probe responds within 1 s, 100 % healthy over a 1-hour 10 s polling (SC-004) — T023 integration tests assert the 1 s response bound per request; the 1-hour x 100 % polling is a manual VPS soak.
+- 7-day unattended uptime with no operator intervention (SC-002) — **no automated test**: this is a manual VPS soak validation acknowledged in `quickstart.md`; the architecture supports it (single-stateless process, no known leak path), but the success criterion itself is inherently a long-form manual observation.
 
 **Constraints**: single-instance; loopback-only health endpoint; privileged Message Content Intent must be enabled in the Discord developer portal (documented prerequisite, not a code concern); ≤2000-char Discord message limit enforced via `ECHO_MAX_LENGTH` default 1900.
 
@@ -88,7 +88,8 @@ specs/001-vps-discord-bot/
 ```text
 src/
 ├── shared/
-│   └── types.ts          # BotState, ProcessPhase, ConnectionState, Config (type), UserCommand, EchoResult, HealthStatus
+│   ├── types.ts          # BotState, ProcessPhase, ConnectionState, Config (type), UserCommand, EchoResult, HealthStatus
+│   └── correlation-id.ts # newCorrelationId(): string — wraps crypto.randomUUID() (used by lifecycle §2 second-signal idempotency and discord §2 reconnect-correlation-id logging)
 ├── config/
 │   ├── schema.ts         # zod schema
 │   └── load-config.ts    # loadConfig(env): Config  → throws ConfigError

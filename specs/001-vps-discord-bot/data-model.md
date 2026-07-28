@@ -23,11 +23,12 @@ TypeScript types live in `src/shared/types.ts`; the shapes below are the authori
 | `echoCommandName` | `string` | non-empty, lowercase | no | `ECHO_COMMAND_NAME` (default `echo`) |
 | `echoMaxLength` | `number` | integer, 1 ≤ x ≤ 1900 | no | `ECHO_MAX_LENGTH` (default `1900`) |
 | `shutdownTimeoutMs` | `number` | integer, 1000–30000 | no | `SHUTDOWN_TIMEOUT_MS` (default `5000`) |
-| `healthHost` | `string` | IPv4 literal | no | `HEALTH_HOST` (default `127.0.0.1`) |
+| `healthHost` | `string` | IPv4 literal (loopback-only — see Entity 1 §Validation note below) | no | `HEALTH_HOST` (default `127.0.0.1`) |
 | `healthPort` | `number` | integer, 1–65535 | no | `HEALTH_PORT` (default `8081`) |
 
 **Validation rules** (enforced by a `zod` schema, FR-003):
 - A *missing* required field or a *malformed* optional field MUST cause the loader to emit exactly **one** `fatal` structured log line naming `env.<field>` and exit non-zero.
+- `healthHost` validates as an **IPv4 literal** specifically (not a hostname, not IPv6). The loopback-only intent of the spec (`127.0.0.1` default — `contracts/health.md` §1 "loopback only") is enforced for IPv4 loopback (`127.0.0.0/8`); IPv6 loopback (`::1`) is rejected by the validator. Operators who need IPv6 loopback binding should raise a follow-up spec — v1 documents and ships IPv4-only health binding.
 - `discordToken` is never enumerated in any log line; the logger's `redact.paths` covers `["discordToken", "*.discordToken", "*.token"]` (research R3).
 
 ---
@@ -117,17 +118,17 @@ type UserCommand = {
 
 ```typescript
 type EchoResult =
-  | { status: 'echoed';          reply: string; neutralizedMentions: boolean }
+  | { status: 'echoed';          reply: string; transportShouldNeutralizeMentions: true }
   | { status: 'too-long';        reply: string }     // user-facing error text
   | { status: 'usage-hint';      reply: string };    // user-facing hint text
 ```
 
 **Mention-neutralization contract (FR-013)**:
-- `reply` carries the echoed text **as-is** for cosmetic markdown (allowed), but the *send call* is always made with `allowedMentions: { parse: [], users: [], roles: [] }` so no user/role/`@everyone`/`@here` renders a notification on the echoed reply (research R2). `neutralizedMentions` is `true` unconditionally on `echoed` and exists as an auditable field for SC-006 / a future test assertion.
+- `reply` carries the echoed text **as-is** for cosmetic markdown (allowed), but the *send call* is always made with `allowedMentions: { parse: [], users: [], roles: [] }` so no user/role/`@everyone`/`@here` renders a notification on the echoed reply (research R2). `transportShouldNeutralizeMentions` is `true` unconditionally on `echoed` and is a **contract signal** to the transport, not a guarantee that the core neutralized anything — the echo core is pure and never inspects token strings. A future non-Discord transport reading this field MUST treat it as a directive ("you must neutralize"), not as an audit ("I already did").
 - The echo core never inspects token strings; neutralization is a transport-level guarantee the discord adapter enforces when it converts `EchoResult` into `MessageCreateOptions`.
 
 **Validation rules**:
-- `reply` MUST be ≤ 2000 chars (Discord message limit); the `echoMaxLength` default of 1900 leaves headroom for any fixed reply framing and is enforced **before** send.
+- `reply` MUST be ≤ 2000 chars (Discord message limit); `echoMaxLength` is capped at 1900 — a 100-char forward-compat buffer below the platform limit so a future reply-framing change does not require a config default change. The constant error-text strings for `too-long` and `usage-hint` are <50 chars and never approach the limit.
 - No transformation of `args` other than the zero-byte-trim and length cap; the payload is otherwise echoed verbatim (Story 1 #1: "derived from the user's input, not a fixed or hardcoded message").
 
 ---
