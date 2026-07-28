@@ -20,6 +20,7 @@ Filled from `research.md` (Phase 0). The few items initially flagged `NEEDS CLAR
 - `zod@4.4.3` — env-config validation with inferred typed `Config`. *(NEEDS CLARIFICATION → resolved R5)*
 - `vitest@4.1.10` — test runner (unit + contract + integration). *(NEEDS CLARIFICATION → resolved R7)*
 - `tsx@4.23.1`, `@types/node@24.13.3` (pinned to the Node 24 LTS line, matching the runtime) — dev only.
+- `eslint@10.8.0`, `typescript-eslint@8.65.0` — dev only (import-boundary enforcement, research R10; uses ESLint's **core** `no-restricted-paths` rule — the `eslint-plugin-no-restricted-paths` package R10 named is not published on npm. Peer-range note: `typescript-eslint@8.65.0` declares `typescript <6.1.0`; `package.json` carries an `overrides` entry for the typescript peer, with a documented fallback of linting compiled `dist/**/*.js` if the parser rejects TS 7).
 All versions pinned exactly in `package.json` (no `^`/`~`), per AGENTS.md.
 
 **Health surface**: a built-in `node:http` server on `127.0.0.1:8081` answering `GET /healthz`, plus an optional `npm run health` CLI wrapper. *(NEEDS CLARIFICATION → resolved R4)*
@@ -103,8 +104,8 @@ src/
 │   └── server.ts         # startHealthServer(deps); stop(); mapHealthStatus(state)
 ├── lifecycle/
 │   └── run-app.ts        # runApp(): wiring + SIGTERM/SIGINT + bounded shutdown
-├── app/
-│   └── index.ts          # `node dist/index.js` entry: runApp()
+├── index.ts              # `node dist/index.js` entry: runApp()
+├── health-cli.ts         # optional `npm run health` CLI: HTTP-GETs the loopback /healthz, prints body, exit 1 on non-2xx (tasks T023a/T026)
 docs/
 └── deployment.md         # systemd unit, env, start/stop/log/health (FR-010)
 

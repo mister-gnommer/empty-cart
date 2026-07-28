@@ -107,7 +107,7 @@ Bounded response within 1 s (SC-004) is trivial — the handler does no I/O.
 | `LOG_LEVEL` | no | enum `trace\|debug\|info\|warn\|error\|fatal` | `info` | no |
 | `COMMAND_PREFIX` | no | non-empty string, 1–4 chars, no whitespace | `!` | no |
 | `ECHO_COMMAND_NAME` | no | non-empty string, lowercase | `echo` | no |
-| `ECHO_MAX_LENGTH` | no | int ≥1, ≤1900 (Discord 2000-char reply budget minus prefix/footer) | `1900` | no |
+| `ECHO_MAX_LENGTH` | no | int ≥1, ≤1900 (Discord 2000-char reply budget minus 100-char forward-compat buffer) | `1900` | no |
 | `SHUTDOWN_TIMEOUT_MS` | no | int ≥1000, ≤30000 | `5000` | no |
 | `HEALTH_HOST` | no | IPv4 literal | `127.0.0.1` | no |
 | `HEALTH_PORT` | no | port int 1–65535 | `8081` | no |
@@ -166,7 +166,7 @@ src/
   echo/          handleEchoCommand(payload) → Result   (pure; mention-neutralization contract)
   discord/       DiscordAdapter: connects, routes echo, emits ConnectionState  (discord.js)
   lifecycle/     run(): wires modules, owns SIGTERM/SIGINT + shutdown budget
-  app/           composition root (index.ts) invoked by `node dist/index.js`
+  index.ts       composition root invoked by `node dist/index.js`
   shared/        BotState type, ConnectionState enum, correlation-id helper
 tests/
   unit/  contract/  integration/
@@ -236,6 +236,7 @@ export default [
 
 Notes:
 - ESLint flat config (v9+) uses the `target: ['!src/discord/**']` negation form to mean "applies to every file NOT matching `src/discord/**`". The legacy `.eslintrc` `target: 'src/(?!(discord)/)(.*)'` regex form (illustrated in earlier drafts of this entry) is replaced by the flat-config array form above — verified against `eslint-plugin-no-restricted-paths` README.
+- **Availability correction (added during /speckit.analyze remediation, 2026-07-28)**: `eslint-plugin-no-restricted-paths` is not published on npm (verified 404). Task T004 therefore implements the same three zones with ESLint's **core** `no-restricted-paths` rule (no plugin import; zone semantics — `target` globs with negation, `from` module names — are equivalent). The block above is kept as the semantic reference for the zones, not as the literal syntax source.
 - New entries for future modules (`@langchain/*` to `src/agent-foo/`, `tesseract.js` to `src/ocr/`) are added by appending one zone each — no takss-phase design decision left; the rule shape is fixed.
 
 The rule runs in CI (`npm run lint` invokes `eslint --max-warnings 0`), so a future agent module that tries to import `discord.js` fails the build. The matrix is extensible: when OCR/agents arrive, append rules like "only `src/<agent>/` may import `@langchain/*` or `tesseract.js`".

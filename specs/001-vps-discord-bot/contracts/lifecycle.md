@@ -1,6 +1,6 @@
 # Contract — `lifecycle` (composition root + shutdown)
 
-**Module path**: `src/lifecycle/` plus `src/app/index.ts` (the single entrypoint `node dist/index.js` invokes).
+**Module path**: `src/lifecycle/` plus `src/index.ts` (the single entrypoint `node dist/index.js` invokes).
 **Depends on**: `config`, `logger`, `health`, `discord`, `src/shared/types`
 **Depended on by**: the OS process supervisor (systemd)
 **Spec refs**: FR-003, FR-006, FR-010, User Story 2 #1–#3, SC-003, Edge Cases double-signal & log-destination-unavailable
@@ -8,7 +8,7 @@
 ## Public surface
 
 ```typescript
-export function runApp(): Promise<void>;   // the only top-level export invoked from src/app/index.ts
+export function runApp(): Promise<void>;   // the only top-level export invoked from src/index.ts
 ```
 
 `runApp` is the single thing the entrypoint calls; it constructs all modules and owns the process-signal listeners and the shutdown budget. No other module installs a `process.on('SIGTERM', ...)` or calls `process.exit`.
@@ -26,7 +26,7 @@ export function runApp(): Promise<void>;   // the only top-level export invoked 
 2. **Signal handling** (installed once, in `runApp`):
    - `SIGTERM` (FR-006) and `SIGINT` (dev convenience) both call the same `requestShutdown(reason)` once-guard.
    - First invocation → emit one `log info: msg="shutdown requested"; fields: reason` (the event `quickstart.md` step 5 asserts) and proceed to §3.
-   - Second invocation → emit exactly one `log warn: msg="shutdown already in progress"` and return (Edge Case: no restart mid-shutdown).
+   - Second invocation → emit exactly one `log warn: msg="shutdown already in progress"; fields: correlationId` (a fresh `newCorrelationId()` per invocation, so the idempotent warn is independently traceable) and return (Edge Case: no restart mid-shutdown).
 3. **Shutdown budget** (`config.shutdownTimeoutMs`, default 5000, SC-003):
    ```
    set botState.phase = 'shutting-down'        // health flips to 503 shutting-down immediately
@@ -46,7 +46,7 @@ export function runApp(): Promise<void>;   // the only top-level export invoked 
 ## Test obligations
 
 - Contract: with all child modules mocked, a `SIGTERM` dispatch emits `log info: msg="shutdown requested"; fields: reason="SIGTERM"`, races and resolves within a (test-short) budget, calls `adapter.stop()`, `healthServer.stop()`, and `process.exit(0)` — and does NOT call `logger.flush()`.
-- Contract: second `SIGTERM` during shutdown logs exactly one `warn` with `msg="shutdown already in progress"` and does not re-enter shutdown (Edge Case idempotency).
+- Contract: second `SIGTERM` during shutdown logs exactly one `warn` with `msg="shutdown already in progress"` carrying a `correlationId` field and does not re-enter shutdown (Edge Case idempotency).
 - Contract: budget exhaustion → exactly one `warn` with `msg="shutdown budget exceeded"` + `process.exit(1)` (bounded, non-hanging).
 - Contract: success-path shutdown completes within the (test-short) budget → exactly one `info` with `msg="shutdown complete"; fields: phase="shutting-down"` then `process.exit(0)` (FR-004 "shutdown completion" event; distinct from `shutdown requested` and the adapter's `discord disconnected` line).
 - Contract: `loadConfig` throwing `ConfigError` → exactly one `fatal` with `msg="config validation failed"`, `fields: env, reason` taken from the error, `bootLog` used (not a validated logger), and `process.exit(1)`.
