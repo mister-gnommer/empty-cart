@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - '001-*'
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js 24 LTS
+        uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: 'npm'
+
+      - name: Install dependencies (exact-pinned)
+        run: npm ci
+
+      - name: Lint (no-restricted-paths zones on compiled dist)
+        # eslint.config.mjs runs the CORE no-restricted-modules rule on the
+        # post-tsc dist/**/*.js output (typescript-eslint cannot parse TS 7
+        # sources — see eslint.config.mjs header). Build must run first.
+        run: npm run build
+      - run: npm run lint
+
+      - name: Build (defensive — also runs in the lint step above)
+        run: npm run build
+
+      - name: Tests (unit + contract + integration)
+        run: npm test
