@@ -2,7 +2,7 @@
 
 Operator runbook for installing the bot as a systemd-managed background service on a single Linux VPS (FR-009, FR-010, SC-005).
 
-> **30-minute install target (SC-005).** This guide is sequenced so a single operator with no prior exposure to the codebase can reach a healthy, SIGTERM-clean bot in 30 minutes. The `docs/deployment.md` outline is fixed here during the spec/plan phase; concrete install commands and the canonical systemd unit text are finalized in the implementation task `T021` against `tasks.md`.
+> **30-minute install target (SC-005).** This guide is sequenced so a single operator with no prior exposure to the codebase can reach a healthy, SIGTERM-clean bot in 30 minutes. Finalized in implementation task `T021` against `specs/001-vps-discord-bot/tasks.md`; the install commands, env-var reference, systemd unit text, and shutdown-budget mapping below match the implementation reality in `src/`.
 
 ---
 
