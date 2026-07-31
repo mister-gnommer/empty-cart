@@ -5,23 +5,12 @@
 // correlationId, §3 message routing with childFor(correlationId),
 // §4 allowedMentions empty-parse on every send, §5 handler-throw canonical
 // error reply, §6 bounded retry ceiling, §7 clean shutdown.
-import {
-  Client,
-  Events,
-  GatewayIntentBits,
-  type Message,
-} from 'discord.js';
+import { Client, Events, GatewayIntentBits, type Message } from 'discord.js';
 import type { Logger } from 'pino';
-import type {
-  BotState,
-  Config,
-  ConnectionState,
-  EchoResult,
-  UserCommand,
-} from '../shared/types';
-import { newCorrelationId } from '../shared/correlation-id';
-import { handleEchoCommand } from '../echo/handle-echo';
+import type { handleEchoCommand } from '../echo/handle-echo';
 import { childFor } from '../logger/create-logger';
+import { newCorrelationId } from '../shared/correlation-id';
+import type { BotState, Config, ConnectionState, EchoResult, UserCommand } from '../shared/types';
 
 const EMPTY_ALLOWED_MENTIONS = {
   parse: [] as string[],
@@ -191,10 +180,8 @@ export function createDiscordAdapter(deps: {
   // `PartialGroupDMChannel` (which has no `send`) on one branch, so we
   // deliberately type the channel loosely here — the adapter's contract owns
   // the allowed payloads (content + allowedMentions only).
-  type SendableChannel =
-    | { send(payload: unknown): Promise<unknown> }
-    | undefined;
-  function sendWithRetry(
+  type SendableChannel = { send(payload: unknown): Promise<unknown> } | undefined;
+  async function sendWithRetry(
     channel: SendableChannel,
     opts: { content: string; allowedMentions: typeof EMPTY_ALLOWED_MENTIONS },
   ): Promise<void> {
@@ -203,7 +190,7 @@ export function createDiscordAdapter(deps: {
     const abortController = new AbortController();
     activeAbortControllers.add(abortController);
 
-    return (async (): Promise<void> => {
+    try {
       const start = Date.now();
       let attempt = 0;
       let lastErr: unknown = null;
@@ -226,16 +213,15 @@ export function createDiscordAdapter(deps: {
           });
         }
       }
-      const errorCode =
-        lastErr instanceof Error ? lastErr.message : String(lastErr);
+      const errorCode = lastErr instanceof Error ? lastErr.message : String(lastErr);
       logger.error({
         msg: 'reply failed after retries',
         errorCode,
         attempts: attempt,
       });
-    })().finally(() => {
+    } finally {
       activeAbortControllers.delete(abortController);
-    });
+    }
   }
 
   function waitFor(ms: number, signal: AbortSignal): Promise<void> {
