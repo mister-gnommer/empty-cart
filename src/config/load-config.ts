@@ -56,13 +56,17 @@ function parseNumberInt(v: string): number | undefined {
   return Number.isSafeInteger(n) ? n : undefined;
 }
 
+function isRequiredField(field: (typeof FIELD_ORDER)[number]): boolean {
+  return !configSchema.shape[field].safeParse(undefined).success;
+}
+
 // Validate each field in documented order, returning the first error encountered
 // classified as `missing` or `malformed`, or the assembled Config on success.
 function validateField(
   field: (typeof FIELD_ORDER)[number],
   raw: unknown,
 ): { value: unknown } | { error: ConfigError } {
-  const required = field === 'discordToken';
+  const required = isRequiredField(field);
   const envName = ENV_NAME[field];
 
   if (isAbsent(raw)) {
@@ -96,9 +100,7 @@ function validateField(
       return { value: raw };
     }
     case 'logLevel': {
-      const ok = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].includes(
-        raw as string,
-      );
+      const ok = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'].includes(raw as string);
       return ok
         ? { value: raw }
         : { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
@@ -109,10 +111,7 @@ function validateField(
           error: new ConfigError({ envField: envName, reason: 'malformed' }),
         };
       }
-      const ok =
-        raw.length >= 1 &&
-        raw.length <= 4 &&
-        !/\s/u.test(raw);
+      const ok = raw.length >= 1 && raw.length <= 4 && !/\s/u.test(raw);
       return ok
         ? { value: raw }
         : { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
@@ -168,10 +167,7 @@ function validateField(
           error: new ConfigError({ envField: envName, reason: 'malformed' }),
         };
       }
-      const ok =
-        /^(25[0-5]|2[0-4]\d|1?\d{1,2})(\.(25[0-5]|2[0-4]\d|1?\d{1,2})){3}$/u.test(
-          raw,
-        );
+      const ok = /^(25[0-5]|2[0-4]\d|1?\d{1,2})(\.(25[0-5]|2[0-4]\d|1?\d{1,2})){3}$/u.test(raw);
       return ok
         ? { value: raw }
         : { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
