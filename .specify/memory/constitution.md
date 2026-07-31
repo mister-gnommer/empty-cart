@@ -1,15 +1,14 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.0.1 → 1.1.0
-Modified principles (no semantic change to principle text):
-  - none (Principle IV's cross-user isolation rule now has real consequence)
-Modified constraints:
-  - Removed: "Single-user scope (v1)" — contradicted Principle IV by implying
-    single-user data is fine for now.
-  - Added:  "Multi-user from day one" — data model and contracts MUST assume
-    multiple users from the start; only multi-user *features* may be deferred.
-Added sections: none
+Version change: 1.1.0 → 1.2.0
+Modified principles: none
+Modified constraints: none
+Added sections: Development Workflow — "Code comments and test names MUST NOT
+  reference spec document identifiers (FR-XXX, SC-XXX, contracts/*.md,
+  data-model.md, quickstart.md, research.md, T### task IDs). Describe the
+  behavior or constraint directly. If a reference truly saves space, use the
+  feature name (e.g. `001-vps-discord-bot`)."
 Removed sections: none
 Templates requiring updates:
   - .specify/templates/plan-template.md      ✅ no update needed
@@ -133,7 +132,12 @@ amendment when scope changes, but MUST hold until then.
 5. **Review**: No work is merged until tests pass and the Constitution Check
    is satisfied; complexity violations MUST be logged in the plan's
    Complexity Tracking table with a justification.
-6. **Validate on VPS**: A feature is not "done" until it has been exercised
+6. **Code comments and test names**: MUST NOT reference spec document
+   identifiers (FR-XXX, SC-XXX, contracts/*.md, data-model.md, quickstart.md,
+   research.md, T### task IDs). Describe the behavior or constraint directly.
+   If a reference truly saves space, use the feature name (e.g.
+   `001-vps-discord-bot`).
+7. **Validate on VPS**: A feature is not "done" until it has been exercised
    against the real VPS deployment, not only locally.
 
 ## Governance
@@ -152,4 +156,4 @@ conflicts with it, the constitution wins.
 - **Runtime guidance**: When day-to-day development guidance is needed, prefer
   the AGENTS.md file at the repository root over ad-hoc decisions.
 
-**Version**: 1.1.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-07-21
+**Version**: 1.2.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-07-31
