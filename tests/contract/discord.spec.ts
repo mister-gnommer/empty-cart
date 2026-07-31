@@ -1,8 +1,8 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
-import type { Config, BotState } from '../../src/shared/types';
+import type { BotState, Config } from '../../src/shared/types';
 
 // Capture all log lines emitted by the adapter into an array of objects
 // (parsed NDJSON so assertions can scan field values directly).
@@ -151,11 +151,9 @@ describe('discord adapter contract (contracts/discord.md)', () => {
   let originalProcessExit: typeof process.exit;
   beforeEach(() => {
     originalProcessExit = process.exit;
-    process.exit = vi.fn(
-      (() => {
-        throw new Error('process.exit called');
-      }) as never,
-    ) as never;
+    process.exit = vi.fn((() => {
+      throw new Error('process.exit called');
+    }) as never) as never;
   });
   afterEach(() => {
     process.exit = originalProcessExit;
@@ -181,9 +179,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       const adapter = makeAdapter(cap, botState, client);
 
       client.emit(Events.ShardDisconnect, { code: 1006 }, 0);
-      const discLine = cap.lines.find(
-        (l) => l.msg === 'discord shard disconnected',
-      );
+      const discLine = cap.lines.find((l) => l.msg === 'discord shard disconnected');
       expect(discLine, 'expected shard-disconnect warn line').toBeDefined();
       expect(String(discLine!.correlationId)).toMatch(/.+/);
       expect(botState.discord).toBe('reconnecting');
@@ -204,9 +200,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       const adapter = makeAdapter(cap, botState, client);
 
       client.emit(Events.ShardDisconnect, { code: 1011 }, 0);
-      const discLine = cap.lines.find(
-        (l) => l.msg === 'discord shard disconnected',
-      );
+      const discLine = cap.lines.find((l) => l.msg === 'discord shard disconnected');
       client.emit(Events.ShardReady, 0);
       const readyLine = cap.lines.find((l) => l.msg === 'discord reconnected');
       expect(readyLine).toBeDefined();
@@ -222,18 +216,12 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       const adapter = makeAdapter(cap, botState, client);
 
       client.emit(Events.ShardDisconnect, { code: 1006 }, 0);
-      const first = cap.lines.findIndex(
-        (l) => l.msg === 'discord shard disconnected',
-      );
+      const first = cap.lines.findIndex((l) => l.msg === 'discord shard disconnected');
       client.emit(Events.ShardResume, undefined, 0);
       client.emit(Events.ShardDisconnect, { code: 1000 }, 0);
-      const second = cap.lines
-        .slice(first + 1)
-        .find((l) => l.msg === 'discord shard disconnected');
+      const second = cap.lines.slice(first + 1).find((l) => l.msg === 'discord shard disconnected');
       expect(second).toBeDefined();
-      expect(second!.correlationId).not.toBe(
-        cap.lines[first]!.correlationId,
-      );
+      expect(second!.correlationId).not.toBe(cap.lines[first]!.correlationId);
 
       await adapter.stop();
     });
@@ -289,7 +277,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       const client = makeStubbedClient();
       const adapter = makeAdapter(cap, botState, client);
 
-      const fake = buildFakeMessage({ content: '!echo ' + 'a'.repeat(1901) });
+      const fake = buildFakeMessage({ content: `!echo ${'a'.repeat(1901)}` });
       await dispatchMessage(client, fake.raw);
 
       const payload = fake.channelStub.send.mock.calls[0]![0] as {
@@ -324,12 +312,8 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       const payload = fake.channelStub.send.mock.calls[0]![0] as {
         content: string;
       };
-      expect(payload.content).toBe(
-        'An internal error occurred while processing your command.',
-      );
-      const errLine = cap.lines.find(
-        (l) => l.msg === 'command handler threw',
-      );
+      expect(payload.content).toBe('An internal error occurred while processing your command.');
+      const errLine = cap.lines.find((l) => l.msg === 'command handler threw');
       expect(errLine).toBeDefined();
       expect(String(errLine!.errorMessage)).toContain('boom from echo core');
       // Reply must NOT contain the exception text.
@@ -354,9 +338,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
 
       expect(send.mock.calls.length).toBeLessThanOrEqual(3);
       expect(send.mock.calls.length).toBeGreaterThanOrEqual(1);
-      const failLine = cap.lines.find(
-        (l) => l.msg === 'reply failed after retries',
-      );
+      const failLine = cap.lines.find((l) => l.msg === 'reply failed after retries');
       expect(failLine).toBeDefined();
       expect(Number(failLine!.attempts)).toBeLessThanOrEqual(3);
       expect(botState.discord).toBe('disconnected');
@@ -376,9 +358,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       const fake = buildFakeMessage({ content: '!echo x', sendImpl: send });
       await dispatchMessage(client, fake.raw);
       expect(send.mock.calls.length).toBe(1);
-      const failLine = cap.lines.find(
-        (l) => l.msg === 'reply failed after retries',
-      );
+      const failLine = cap.lines.find((l) => l.msg === 'reply failed after retries');
       expect(failLine).toBeDefined();
       expect(Number(failLine!.attempts)).toBe(1);
       await adapter.stop();
@@ -456,7 +436,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       const adapter = makeAdapter(cap, botState, client);
 
       const secretText = 'SUPER-SECRET-PAYLOAD-MUST-NOT-LEAK-TO-LOGS';
-      const fake = buildFakeMessage({ content: '!echo ' + secretText });
+      const fake = buildFakeMessage({ content: `!echo ${secretText}` });
       await dispatchMessage(client, fake.raw);
 
       for (const line of cap.lines) {

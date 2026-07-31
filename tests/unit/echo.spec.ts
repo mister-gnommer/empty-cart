@@ -1,11 +1,8 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import type { Config } from '../../src/shared/types';
 
-const baseConfig: Pick<
-  Config,
-  'echoMaxLength' | 'commandPrefix' | 'echoCommandName'
-> = {
+const baseConfig: Pick<Config, 'echoMaxLength' | 'commandPrefix' | 'echoCommandName'> = {
   echoMaxLength: 1900,
   commandPrefix: '!',
   echoCommandName: 'echo',
@@ -60,33 +57,24 @@ describe('handleEchoCommand', () => {
 
   it('reflects the active echoMaxLength in the too-long reply', () => {
     const text = 'a'.repeat(101);
-    const result = handleEchoCommand(
-      { args: text },
-      { ...baseConfig, echoMaxLength: 100 },
-    );
+    const result = handleEchoCommand({ args: text }, { ...baseConfig, echoMaxLength: 100 });
     expect(result).toEqual({
       status: 'too-long',
       reply: 'Input too long (max 100 chars).',
     });
   });
 
-  it.each([
-    '<@123>',
-    '@everyone',
-    '<@&9>',
-    '@here',
-    '@user',
-    '**bold**',
-    '||spoiler||',
-    '>quote',
-  ])('echoes mention/markdown payload %s verbatim with neutralize=true', (payload) => {
-    const result = handleEchoCommand({ args: payload }, baseConfig);
-    expect(result).toEqual({
-      status: 'echoed',
-      reply: payload,
-      transportShouldNeutralizeMentions: true,
-    });
-  });
+  it.each(['<@123>', '@everyone', '<@&9>', '@here', '@user', '**bold**', '||spoiler||', '>quote'])(
+    'echoes mention/markdown payload %s verbatim with neutralize=true',
+    (payload) => {
+      const result = handleEchoCommand({ args: payload }, baseConfig);
+      expect(result).toEqual({
+        status: 'echoed',
+        reply: payload,
+        transportShouldNeutralizeMentions: true,
+      });
+    },
+  );
 
   it('produces independent outputs for consecutive calls with different args', () => {
     const first = handleEchoCommand({ args: 'first payload' }, baseConfig);

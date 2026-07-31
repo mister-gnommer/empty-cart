@@ -1,14 +1,5 @@
-import { describe, it, expect, afterEach, vi, beforeEach } from 'vitest';
-import { readFileSync, existsSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import {
-  createLogger,
-  createBootstrapLogger,
-  createEmergencyLogger,
-  childFor,
-} from '../../src/logger/create-logger';
-import type { Config } from '../../src/shared/types';
-
 // Capture pino's stdout output by writing to a test destination buffer:
 // createLogger uses pino's default destination (SonicBoom to stdout). For
 // tests we capture process.stdout by overriding pino's destination via
@@ -17,25 +8,35 @@ import type { Config } from '../../src/shared/types';
 // wire-shape behaviour we exercise createLogger via a wrapper here that
 // re-imports with the same redact config writing to an in-memory stream.
 import pino from 'pino';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  childFor,
+  createBootstrapLogger,
+  createEmergencyLogger,
+  createLogger,
+} from '../../src/logger/create-logger';
+import type { Config } from '../../src/shared/types';
 
-const redactPaths = [
-  'discordToken',
-  '*.discordToken',
-  '*.token',
-  'token',
-  '*.*.token',
-];
+const redactPaths = ['discordToken', '*.discordToken', '*.token', 'token', '*.*.token'];
 
 function makeStreamLogger(level: Config['logLevel'] = 'info') {
   const chunks: string[] = [];
-  const stream = new (require('stream').Writable)({
+  const stream = new (require('node:stream').Writable)({
     write(chunk: Buffer, _enc: string, cb: () => void) {
       chunks.push(chunk.toString());
       cb();
     },
   });
   const logger = pino({ level, redact: { paths: redactPaths, censor: '[Redacted]' } }, stream);
-  return { logger, chunks: () => chunks.join('').split('\n').filter(Boolean).map((l) => JSON.parse(l)) as Record<string, unknown>[] };
+  return {
+    logger,
+    chunks: () =>
+      chunks
+        .join('')
+        .split('\n')
+        .filter(Boolean)
+        .map((l) => JSON.parse(l)) as Record<string, unknown>[],
+  };
 }
 
 describe('logger (contracts/logger.md)', () => {
@@ -80,7 +81,9 @@ describe('logger (contracts/logger.md)', () => {
   describe('childFor binds correlationId on every subsequent line', () => {
     it('every line emitted by the child logger carries the binding', () => {
       const { logger, chunks } = makeStreamLogger('info');
-      const child = childFor(logger as never, 'corr-1') as ReturnType<typeof makeStreamLogger>['logger'];
+      const child = childFor(logger as never, 'corr-1') as ReturnType<
+        typeof makeStreamLogger
+      >['logger'];
       child.info({ msg: 'first' });
       child.warn({ msg: 'second' });
       child.error({ msg: 'third' });
@@ -93,7 +96,9 @@ describe('logger (contracts/logger.md)', () => {
 
     it('extra bindings are also merged onto every line', () => {
       const { logger, chunks } = makeStreamLogger('info');
-      const child = childFor(logger as never, 'corr-2', { userId: 'u1' }) as ReturnType<typeof makeStreamLogger>['logger'];
+      const child = childFor(logger as never, 'corr-2', { userId: 'u1' }) as ReturnType<
+        typeof makeStreamLogger
+      >['logger'];
       child.info({ msg: 'event' });
       const line = chunks()[0];
       expect(line.correlationId).toBe('corr-2');
@@ -147,7 +152,11 @@ describe('logger (contracts/logger.md)', () => {
       const spy = vi
         .spyOn(process.stderr, 'write')
         .mockImplementation((chunk: string | Buffer | Uint8Array) => {
-          captured.push(Buffer.isBuffer(chunk) || chunk instanceof Uint8Array ? Buffer.from(chunk).toString() : String(chunk));
+          captured.push(
+            Buffer.isBuffer(chunk) || chunk instanceof Uint8Array
+              ? Buffer.from(chunk).toString()
+              : String(chunk),
+          );
           return true;
         });
       try {

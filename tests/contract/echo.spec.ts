@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
 
 // FR-008 / Constitution Principle IV: structural purity check for the echo
 // core. `handleEchoCommand` MUST NOT reference any module-scoped mutable

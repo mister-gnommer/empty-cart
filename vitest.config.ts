@@ -4,10 +4,6 @@ export default defineConfig({
   test: {
     environment: 'node',
     setupFiles: ['./vitest.setup.ts'],
-    projects: [
-      { root: 'tests/unit' },
-      { root: 'tests/contract' },
-      { root: 'tests/integration' },
-    ],
+    projects: [{ root: 'tests/unit' }, { root: 'tests/contract' }, { root: 'tests/integration' }],
   },
 });

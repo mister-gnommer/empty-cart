@@ -1,5 +1,5 @@
-import { describe, it, expect, vi } from 'vitest';
 import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import type { BotState, Config } from '../../src/shared/types';

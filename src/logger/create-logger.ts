@@ -7,13 +7,7 @@
 import pino, { type Logger } from 'pino';
 import type { Config } from '../shared/types';
 
-const REDACT_PATHS = [
-  'discordToken',
-  '*.discordToken',
-  '*.token',
-  'token',
-  '*.*.token',
-];
+const REDACT_PATHS = ['discordToken', '*.discordToken', '*.token', 'token', '*.*.token'];
 const REDACT_CENSOR = '[Redacted]';
 
 export function createLogger(config: Pick<Config, 'logLevel'>): Logger {

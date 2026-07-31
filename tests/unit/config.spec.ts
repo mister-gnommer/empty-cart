@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { loadConfig, ConfigError } from '../../src/config/load-config';
+import { describe, expect, it } from 'vitest';
+import { ConfigError, loadConfig } from '../../src/config/load-config';
 
 const VALID: NodeJS.ProcessEnv = {
   DISCORD_TOKEN: 'tok',
@@ -12,7 +12,11 @@ const VALID: NodeJS.ProcessEnv = {
   HEALTH_PORT: '8081',
 };
 
-function expectError(env: NodeJS.ProcessEnv, envField: string, reason: 'missing' | 'malformed'): void {
+function expectError(
+  env: NodeJS.ProcessEnv,
+  envField: string,
+  reason: 'missing' | 'malformed',
+): void {
   let caught: ConfigError | undefined;
   try {
     loadConfig(env);

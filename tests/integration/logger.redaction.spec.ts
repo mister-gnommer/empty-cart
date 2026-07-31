@@ -1,12 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import pino from 'pino';
 import { Writable } from 'node:stream';
-import {
-  createLogger,
-  createBootstrapLogger,
-  childFor,
-} from '../../src/logger/create-logger';
+import pino from 'pino';
+import { describe, expect, it } from 'vitest';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
+import { childFor, createBootstrapLogger, createLogger } from '../../src/logger/create-logger';
 import type { Config } from '../../src/shared/types';
 
 // End-to-end SC-006 path: representative startup → echo-handle → shutdown
@@ -54,13 +50,7 @@ describe('SC-006 redaction end-to-end (tests/integration/logger.redaction.spec.t
     // pino logger directly to our captured stream using the same redact.paths
     // shape contracts/logger.md §3 mandates. This exercises the contract on
     // the REAL logger-creation path parametrically.
-    const redactPaths = [
-      'discordToken',
-      '*.discordToken',
-      '*.token',
-      'token',
-      '*.*.token',
-    ];
+    const redactPaths = ['discordToken', '*.discordToken', '*.token', 'token', '*.*.token'];
     const logger = pino(
       {
         level: 'debug',
@@ -70,13 +60,19 @@ describe('SC-006 redaction end-to-end (tests/integration/logger.redaction.spec.t
     );
 
     // --- startup-fatal path uses createBootstrapLogger + createLogger ---
-    void createBootstrapLogger;  // exercised implicitly via createLogger path
+    void createBootstrapLogger; // exercised implicitly via createLogger path
     const realLogger = createLogger(config);
     void realLogger; // cover the contract API; the assertions below use the
     // captured logger to exercise the SC-006 wire format on a known sink.
 
     // --- startup events ---
-    logger.info({ msg: 'bot started', healthAddress: '127.0.0.1:8081', prefix: '!', echoCommandName: 'echo', config });
+    logger.info({
+      msg: 'bot started',
+      healthAddress: '127.0.0.1:8081',
+      prefix: '!',
+      echoCommandName: 'echo',
+      config,
+    });
 
     // --- echo-handle: log command-received / command-handled (lengths only,
     //     config never logged at value level by the contract) ---

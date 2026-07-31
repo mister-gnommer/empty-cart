@@ -3,14 +3,7 @@
 // eslint.config.mjs's `no-restricted-paths` zone).
 import { z } from 'zod';
 
-const logLevel = z.enum([
-  'trace',
-  'debug',
-  'info',
-  'warn',
-  'error',
-  'fatal',
-]);
+const logLevel = z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']);
 
 const noWhitespaceString = z
   .string()
@@ -20,13 +13,9 @@ const noWhitespaceString = z
 // data-model.md Entity 1 §Validation note).
 const ipv4Literal = z
   .string()
-  .refine(
-    (v) =>
-      /^(25[0-5]|2[0-4]\d|1?\d{1,2})(\.(25[0-5]|2[0-4]\d|1?\d{1,2})){3}$/u.test(
-        v,
-      ),
-    { message: 'must be a valid IPv4 literal' },
-  );
+  .refine((v) => /^(25[0-5]|2[0-4]\d|1?\d{1,2})(\.(25[0-5]|2[0-4]\d|1?\d{1,2})){3}$/u.test(v), {
+    message: 'must be a valid IPv4 literal',
+  });
 
 const positiveInt = z
   .number()
@@ -34,9 +23,7 @@ const positiveInt = z
   .refine((n) => Number.isSafeInteger(n), { message: 'must be an integer' });
 
 export const configSchema = z.object({
-  discordToken: z
-    .string()
-    .min(1, 'discordToken must be non-empty'),
+  discordToken: z.string().min(1, 'discordToken must be non-empty'),
   logLevel: logLevel.default('info'),
   commandPrefix: noWhitespaceString
     .min(1, 'commandPrefix must be 1-4 chars')

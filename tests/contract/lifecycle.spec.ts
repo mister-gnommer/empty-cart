@@ -1,6 +1,6 @@
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
-import type { Config, BotState } from '../../src/shared/types';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newCorrelationId } from '../../src/shared/correlation-id';
+import type { BotState, Config } from '../../src/shared/types';
 
 // Drive lifecycle.runApp() with mocked child modules. We import the module
 // AFTER installing the stubs so its imports resolve to our mocks.
@@ -36,7 +36,7 @@ function makeCapturingLogger(): {
   return { logger: make(), child: (b) => make(b), lines };
 }
 
-function makeBotState(): BotState {
+function _makeBotState(): BotState {
   return {
     phase: 'starting',
     discord: 'disconnected',
@@ -69,10 +69,10 @@ async function loadAppWithMocks(opts: {
   startHealthThrows?: Error;
   adapterStartImpl?: () => Promise<void>;
   adapterStopImpl?: () => Promise<void>;
-bootLogger?: unknown;
-    bootstrapLoggerThrows?: boolean;
-    emergencyLoggerThrows?: boolean;
-  }) {
+  bootLogger?: unknown;
+  bootstrapLoggerThrows?: boolean;
+  emergencyLoggerThrows?: boolean;
+}) {
   const cap = makeCapturingLogger();
 
   // Mock ConfigError class is defined OUTSIDE the loadConfig factory so that
@@ -102,22 +102,24 @@ bootLogger?: unknown;
   // Mock createLogger family.
   const createLoggerMock = vi.fn(() => cap.logger);
   const createBootstrapLoggerMock = vi.fn(() => {
-      if (opts.bootstrapLoggerThrows) {
-        throw new Error('bootstrap logger construction threw');
-      }
-      return cap.logger;
-    });
+    if (opts.bootstrapLoggerThrows) {
+      throw new Error('bootstrap logger construction threw');
+    }
+    return cap.logger;
+  });
   const createEmergencyLoggerMock = vi.fn(() => {
     if (opts.emergencyLoggerThrows) {
       throw new Error('emergency logger construction threw');
     }
     return cap.logger;
   });
-  const childForMock = vi.fn((l: unknown, correlationId: string, extra?: Record<string, unknown>) => {
-    void l;
-    void extra;
-    return cap.child({ correlationId });
-  });
+  const childForMock = vi.fn(
+    (l: unknown, correlationId: string, extra?: Record<string, unknown>) => {
+      void l;
+      void extra;
+      return cap.child({ correlationId });
+    },
+  );
 
   // Mock health server.
   const healthStop = vi.fn(async () => {
@@ -275,9 +277,9 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
       await expect(p).rejects.toThrow(/process\.exit/);
 
       const infoLines = env.cap.lines.filter((l) => l.level === 'info');
-      expect(
-        infoLines.some((l) => l.msg === 'shutdown requested' && l.reason === 'SIGTERM'),
-      ).toBe(true);
+      expect(infoLines.some((l) => l.msg === 'shutdown requested' && l.reason === 'SIGTERM')).toBe(
+        true,
+      );
       expect(
         infoLines.some((l) => l.msg === 'shutdown complete' && l.phase === 'shutting-down'),
       ).toBe(true);
@@ -330,8 +332,7 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
       });
       const env = await loadAppWithMocks({
         adapterStopImpl: () => hangingStop,
-        loadConfigImpl: () =>
-          makeConfig({ shutdownTimeoutMs: 50 }), // very short budget
+        loadConfigImpl: () => makeConfig({ shutdownTimeoutMs: 50 }), // very short budget
       });
       const p = env.runApp();
       await new Promise((r) => setImmediate(r));
@@ -344,9 +345,7 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
         (l) => l.level === 'warn' && l.msg === 'shutdown budget exceeded',
       );
       expect(warnExceeded).toBeDefined();
-      expect(
-        env.cap.lines.find((l) => l.msg === 'shutdown complete'),
-      ).toBeUndefined();
+      expect(env.cap.lines.find((l) => l.msg === 'shutdown complete')).toBeUndefined();
       expect(exitCalls).toEqual([1]);
       // Release the dangling hang so the dangling promise resolves cleanly.
       resolveStop();

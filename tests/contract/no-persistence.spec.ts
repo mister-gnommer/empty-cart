@@ -1,6 +1,6 @@
-import { describe, it, expect } from 'vitest';
-import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
+import { describe, expect, it } from 'vitest';
 
 // FR-008 / spec Edge Cases: "MUST NOT retain echo command payloads after the
 // command has been handled." Belt-and-suspenders to the design discipline: the

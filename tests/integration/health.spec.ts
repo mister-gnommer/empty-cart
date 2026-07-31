@@ -1,6 +1,6 @@
-import { describe, it, expect, afterEach } from 'vitest';
 import { request } from 'node:http';
-import { startHealthServer, type HealthServer } from '../../src/health/server';
+import { afterEach, describe, expect, it } from 'vitest';
+import { type HealthServer, startHealthServer } from '../../src/health/server';
 import type { BotState, ConnectionState, ProcessPhase } from '../../src/shared/types';
 
 const HOST = '127.0.0.1';
@@ -13,10 +13,7 @@ function uniquePort(): number {
 }
 uniquePort.counter = 18099;
 
-function makeState(
-  phase: ProcessPhase,
-  discord: ConnectionState,
-): BotState {
+function makeState(phase: ProcessPhase, discord: ConnectionState): BotState {
   const t = Date.now();
   return {
     phase,
@@ -47,7 +44,7 @@ describe('integration: /healthz over real node:http (contracts/health.md)', () =
         fatal: () => undefined,
         debug: () => undefined,
         trace: () => undefined,
-        child: () => ({} as never),
+        child: () => ({}) as never,
       } as never,
     });
     servers.push(s);
@@ -57,19 +54,20 @@ describe('integration: /healthz over real node:http (contracts/health.md)', () =
 
   function get(port: number, path: string): Promise<{ status: number; body: string }> {
     return new Promise((resolve, reject) => {
-      const req = request(
-        { host: HOST, port, path, method: 'GET', timeout: 1000 },
-        (res) => {
-          let body = '';
-          res.setEncoding('utf8');
-          res.on('data', (chunk) => { body += chunk; });
-          res.on('end', () => {
-            resolve({ status: res.statusCode ?? 0, body });
-          });
-        },
-      );
+      const req = request({ host: HOST, port, path, method: 'GET', timeout: 1000 }, (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (chunk) => {
+          body += chunk;
+        });
+        res.on('end', () => {
+          resolve({ status: res.statusCode ?? 0, body });
+        });
+      });
       req.on('error', reject);
-      req.on('timeout', () => { req.destroy(new Error('timeout')); });
+      req.on('timeout', () => {
+        req.destroy(new Error('timeout'));
+      });
       req.end();
     });
   }
@@ -80,17 +78,16 @@ describe('integration: /healthz over real node:http (contracts/health.md)', () =
     method: 'GET' | 'POST',
   ): Promise<{ status: number; body: string }> {
     return new Promise((resolve, reject) => {
-      const req = request(
-        { host: HOST, port, path, method, timeout: 1000 },
-        (res) => {
-          let body = '';
-          res.setEncoding('utf8');
-          res.on('data', (c) => { body += c; });
-          res.on('end', () => {
-            resolve({ status: res.statusCode ?? 0, body });
-          });
-        },
-      );
+      const req = request({ host: HOST, port, path, method, timeout: 1000 }, (res) => {
+        let body = '';
+        res.setEncoding('utf8');
+        res.on('data', (c) => {
+          body += c;
+        });
+        res.on('end', () => {
+          resolve({ status: res.statusCode ?? 0, body });
+        });
+      });
       req.on('error', reject);
       req.on('timeout', () => req.destroy(new Error('timeout')));
       req.end();

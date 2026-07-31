@@ -14,30 +14,28 @@ function envInt(name: string, fallback: number): number {
   return Number.isSafeInteger(n) ? n : fallback;
 }
 
-const host = process.env.HEALTH_HOST && process.env.HEALTH_HOST.length > 0
-  ? process.env.HEALTH_HOST
-  : '127.0.0.1';
+const host =
+  process.env.HEALTH_HOST && process.env.HEALTH_HOST.length > 0
+    ? process.env.HEALTH_HOST
+    : '127.0.0.1';
 const port = envInt('HEALTH_PORT', 8081);
 
-const req = get(
-  { host, port, path: '/healthz', method: 'GET', timeout: 5000 },
-  (res) => {
-    res.setEncoding('utf8');
-    let body = '';
-    res.on('data', (chunk: string) => {
-      body += chunk;
-    });
-    res.on('end', () => {
-      process.stdout.write(body);
-      const status = res.statusCode ?? 0;
-      if (status >= 200 && status < 300) {
-        process.exit(0);
-      } else {
-        process.exit(1);
-      }
-    });
-  },
-);
+const req = get({ host, port, path: '/healthz', method: 'GET', timeout: 5000 }, (res) => {
+  res.setEncoding('utf8');
+  let body = '';
+  res.on('data', (chunk: string) => {
+    body += chunk;
+  });
+  res.on('end', () => {
+    process.stdout.write(body);
+    const status = res.statusCode ?? 0;
+    if (status >= 200 && status < 300) {
+      process.exit(0);
+    } else {
+      process.exit(1);
+    }
+  });
+});
 
 req.on('error', () => {
   process.exit(1);

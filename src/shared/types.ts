@@ -4,19 +4,9 @@
 
 export type ProcessPhase = 'starting' | 'running' | 'shutting-down' | 'stopped';
 
-export type ConnectionState =
-  | 'disconnected'
-  | 'connected'
-  | 'reconnecting'
-  | 'destroyed';
+export type ConnectionState = 'disconnected' | 'connected' | 'reconnecting' | 'destroyed';
 
-export type LogLevel =
-  | 'trace'
-  | 'debug'
-  | 'info'
-  | 'warn'
-  | 'error'
-  | 'fatal';
+export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
 export type Config = Readonly<{
   discordToken: string;

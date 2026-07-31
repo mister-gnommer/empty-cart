@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { mapHealthStatus } from '../../src/health/server';
 import type { BotState, ConnectionState, ProcessPhase } from '../../src/shared/types';
 
@@ -32,10 +32,7 @@ describe('mapHealthStatus (contracts/health.md §3 mapper)', () => {
     }
     for (const discord of ['connected', 'disconnected', 'reconnecting', 'destroyed'] as const) {
       it(`shutting-down + ${discord} → 503 shutting-down (no stale healthy)`, () => {
-        const r = mapHealthStatus(
-          makeState('shutting-down', discord),
-          1_700_000_005_000,
-        );
+        const r = mapHealthStatus(makeState('shutting-down', discord), 1_700_000_005_000);
         expect(r.httpStatus).toBe(503);
         expect(r.body.status).toBe('shutting-down');
       });

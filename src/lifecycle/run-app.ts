@@ -2,17 +2,18 @@
 // budget. The only module that calls `process.exit`. Per contracts/lifecycle.md
 // §1 startup order, §2 signal handling, §3 shutdown race, §4 no flush, §5 exit
 // discipline.
-import { loadConfig, ConfigError } from '../config/load-config';
-import {
-  createLogger,
-  createBootstrapLogger,
-  createEmergencyLogger,
-} from '../logger/create-logger';
-import { startHealthServer, type HealthServer } from '../health/server';
+import { ConfigError, loadConfig } from '../config/load-config';
+import type { DiscordAdapter } from '../discord/adapter';
 import { createDiscordAdapter } from '../discord/adapter';
 import { handleEchoCommand } from '../echo/handle-echo';
+import { type HealthServer, startHealthServer } from '../health/server';
+import {
+  createBootstrapLogger,
+  createEmergencyLogger,
+  createLogger,
+} from '../logger/create-logger';
 import { newCorrelationId } from '../shared/correlation-id';
-import type { BotState, ProcessPhase } from '../shared/types';
+import type { BotState } from '../shared/types';
 
 let shuttingDownInFlight = false;
 
@@ -24,7 +25,7 @@ export async function runApp(): Promise<void> {
     bootLog = createBootstrapLogger(process.env);
   } catch {
     // stdout unavailable → emergency logger to stderr + exit 1.
-    let emergencyLog;
+    let emergencyLog: ReturnType<typeof createEmergencyLogger>;
     try {
       emergencyLog = createEmergencyLogger();
     } catch {
@@ -161,7 +162,7 @@ export async function runApp(): Promise<void> {
   })();
 
   // §1.5 — discord adapter (only importer of discord.js)
-  let adapter;
+  let adapter: DiscordAdapter;
   try {
     adapter = createDiscordAdapter({
       config,
