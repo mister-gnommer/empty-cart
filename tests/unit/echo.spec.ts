@@ -8,12 +8,15 @@ const baseConfig: Pick<Config, 'echoMaxLength' | 'commandPrefix' | 'echoCommandN
   echoCommandName: 'echo',
 };
 
+const usageHint = `Usage: ${baseConfig.commandPrefix}${baseConfig.echoCommandName} <text>`;
+const tooLongMsg = `Input too long (max ${baseConfig.echoMaxLength} chars).`;
+
 describe('handleEchoCommand', () => {
   it('returns usage-hint with canonical reply on empty args', () => {
     const result = handleEchoCommand({ args: '' }, baseConfig);
     expect(result).toEqual({
       status: 'usage-hint',
-      reply: 'Usage: !echo <text>',
+      reply: usageHint,
     });
   });
 
@@ -21,7 +24,7 @@ describe('handleEchoCommand', () => {
     const result = handleEchoCommand({ args: '   \t\n  ' }, baseConfig);
     expect(result).toEqual({
       status: 'usage-hint',
-      reply: 'Usage: !echo <text>',
+      reply: usageHint,
     });
   });
 
@@ -51,7 +54,7 @@ describe('handleEchoCommand', () => {
     const result = handleEchoCommand({ args: text }, baseConfig);
     expect(result).toEqual({
       status: 'too-long',
-      reply: 'Input too long (max 1900 chars).',
+      reply: tooLongMsg,
     });
   });
 

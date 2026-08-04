@@ -2,6 +2,22 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newCorrelationId } from '../../src/shared/correlation-id';
 import type { BotState, Config } from '../../src/shared/types';
 
+const SIGTERM = 'SIGTERM' as const;
+const SIGINT = 'SIGINT' as const;
+const SIG_LIST = [SIGTERM, SIGINT] as const;
+type SigName = (typeof SIG_LIST)[number];
+
+const DEFAULT_CONFIG: Config = {
+  discordToken: 'tok',
+  logLevel: 'info',
+  commandPrefix: '!',
+  echoCommandName: 'echo',
+  echoMaxLength: 1900,
+  shutdownTimeoutMs: 5000,
+  healthHost: '127.0.0.1',
+  healthPort: 8081,
+};
+
 // Drive lifecycle.runApp() with mocked child modules. We import the module
 // AFTER installing the stubs so its imports resolve to our mocks.
 
@@ -46,17 +62,7 @@ function _makeBotState(): BotState {
 }
 
 function makeConfig(overrides: Partial<Config> = {}): Config {
-  return {
-    discordToken: 'tok',
-    logLevel: 'info',
-    commandPrefix: '!',
-    echoCommandName: 'echo',
-    echoMaxLength: 1900,
-    shutdownTimeoutMs: 100,
-    healthHost: '127.0.0.1',
-    healthPort: 8081,
-    ...overrides,
-  };
+  return { ...DEFAULT_CONFIG, ...overrides };
 }
 
 // Build the mocked module graph by mocking the dependency modules before
@@ -183,7 +189,7 @@ async function loadAppWithMocks(opts: {
   };
 }
 
-async function dispatchSignal(signal: 'SIGTERM' | 'SIGINT'): Promise<void> {
+async function dispatchSignal(signal: SigName): Promise<void> {
   process.emit(signal, signal);
   await new Promise((r) => setImmediate(r));
 }
@@ -203,9 +209,9 @@ const unhandledSwallow = (): void => {
 };
 process.on('unhandledRejection', unhandledSwallow);
 
-const originalListeners: Record<'SIGTERM' | 'SIGINT', NodeJS.Listener[]> = {
-  SIGTERM: [...process.listeners('SIGTERM')],
-  SIGINT: [...process.listeners('SIGINT')],
+const originalListeners: Record<SigName, NodeJS.Listener[]> = {
+  [SIGTERM]: [...process.listeners(SIGTERM)],
+  [SIGINT]: [...process.listeners(SIGINT)],
 };
 
 beforeEach(() => {
@@ -224,7 +230,7 @@ afterEach(() => {
   process.exit = originalExit;
   // Reap any signal listeners that runApp installed during the test so they
   // cannot leak into subsequent tests and double-fire `process.exit`.
-  for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  for (const sig of SIG_LIST) {
     const before = originalListeners[sig];
     const current = process.listeners(sig);
     for (const l of current) {
@@ -273,11 +279,11 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
       const p = env.runApp();
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
-      await dispatchSignal('SIGTERM');
+      await dispatchSignal(SIGTERM);
       await expect(p).rejects.toThrow(/process\.exit/);
 
       const infoLines = env.cap.lines.filter((l) => l.level === 'info');
-      expect(infoLines.some((l) => l.msg === 'shutdown requested' && l.reason === 'SIGTERM')).toBe(
+      expect(infoLines.some((l) => l.msg === 'shutdown requested' && l.reason === SIGTERM)).toBe(
         true,
       );
       expect(
@@ -305,10 +311,10 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
       // First signal starts shutdown
-      process.emit('SIGTERM', 'SIGTERM');
+      process.emit(SIGTERM, SIGTERM);
       await new Promise((r) => setImmediate(r));
       // Second signal before adapter.stop resolves
-      process.emit('SIGTERM', 'SIGTERM');
+      process.emit(SIGTERM, SIGTERM);
       await new Promise((r) => setImmediate(r));
       // Now let adapter.stop resolve and the budget race settle.
       const warnLines = env.cap.lines.filter(
@@ -337,7 +343,7 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
       const p = env.runApp();
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
-      process.emit('SIGTERM', 'SIGTERM');
+      process.emit(SIGTERM, SIGTERM);
       // Let the 50ms budget elapse.
       await new Promise((r) => setTimeout(r, 200));
       await expect(p).rejects.toThrow(/process\.exit/);
@@ -376,10 +382,10 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
       const p = env.runApp();
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
-      await dispatchSignal('SIGINT');
+      await dispatchSignal(SIGINT);
       await expect(p).rejects.toThrow(/process\.exit/);
       expect(
-        env.cap.lines.some((l) => l.msg === 'shutdown requested' && l.reason === 'SIGINT'),
+        env.cap.lines.some((l) => l.msg === 'shutdown requested' && l.reason === SIGINT),
       ).toBe(true);
     });
   });

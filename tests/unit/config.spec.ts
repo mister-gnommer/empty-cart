@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Config } from '../../src/shared/types';
 import { ConfigError, loadConfig } from '../../src/config/load-config';
 
 const VALID: NodeJS.ProcessEnv = {
@@ -10,6 +11,17 @@ const VALID: NodeJS.ProcessEnv = {
   SHUTDOWN_TIMEOUT_MS: '5000',
   HEALTH_HOST: '127.0.0.1',
   HEALTH_PORT: '8081',
+};
+
+const DEFAULT_CONFIG: Config = {
+  discordToken: 'tok',
+  logLevel: 'info',
+  commandPrefix: '!',
+  echoCommandName: 'echo',
+  echoMaxLength: 1900,
+  shutdownTimeoutMs: 5000,
+  healthHost: '127.0.0.1',
+  healthPort: 8081,
 };
 
 function expectError(
@@ -26,32 +38,23 @@ function expectError(
   expect(caught, `expected ConfigError for ${envField}/${reason}`).toBeInstanceOf(ConfigError);
   expect(caught!.envField).toBe(envField);
   expect(caught!.reason).toBe(reason);
-  // Message must NEVER contain any value (contracts/config.md §2).
-  expect(caught!.message).not.toContain('tok');
-  expect(caught!.message).not.toContain('5000');
+  // Message must NEVER contain any value — it carries only the field name
+  // and reason class, never the offending value.
+  expect(caught!.message).not.toContain(VALID.DISCORD_TOKEN);
+  expect(caught!.message).not.toContain(VALID.SHUTDOWN_TIMEOUT_MS);
 }
 
 describe('loadConfig (contracts/config.md)', () => {
   describe('golden path', () => {
     it('returns a frozen Config with inferred shape and defaults applied', () => {
-      const cfg = loadConfig({ DISCORD_TOKEN: 'tok' });
-      expect(cfg).toEqual({
-        discordToken: 'tok',
-        logLevel: 'info',
-        commandPrefix: '!',
-        echoCommandName: 'echo',
-        echoMaxLength: 1900,
-        shutdownTimeoutMs: 5000,
-        healthHost: '127.0.0.1',
-        healthPort: 8081,
-      });
+      const cfg = loadConfig({ DISCORD_TOKEN: DEFAULT_CONFIG.discordToken });
+      expect(cfg).toEqual(DEFAULT_CONFIG);
       expect(Object.isFrozen(cfg)).toBe(true);
       expect(Object.isFrozen(Object.getOwnPropertyDescriptor as unknown)).toBe(false);
     });
 
     it('honours all env overrides', () => {
-      const cfg = loadConfig({
-        ...VALID,
+      const envOverrides = {
         LOG_LEVEL: 'trace',
         COMMAND_PREFIX: '?',
         ECHO_COMMAND_NAME: 'say',
@@ -59,15 +62,17 @@ describe('loadConfig (contracts/config.md)', () => {
         SHUTDOWN_TIMEOUT_MS: '12000',
         HEALTH_HOST: '10.0.0.1',
         HEALTH_PORT: '9000',
-      });
+      } as const;
+
+      const cfg = loadConfig({ ...VALID, ...envOverrides });
       expect(cfg).toMatchObject({
-        logLevel: 'trace',
-        commandPrefix: '?',
-        echoCommandName: 'say',
-        echoMaxLength: 100,
-        shutdownTimeoutMs: 12000,
-        healthHost: '10.0.0.1',
-        healthPort: 9000,
+        logLevel: envOverrides.LOG_LEVEL,
+        commandPrefix: envOverrides.COMMAND_PREFIX,
+        echoCommandName: envOverrides.ECHO_COMMAND_NAME,
+        echoMaxLength: Number(envOverrides.ECHO_MAX_LENGTH),
+        shutdownTimeoutMs: Number(envOverrides.SHUTDOWN_TIMEOUT_MS),
+        healthHost: envOverrides.HEALTH_HOST,
+        healthPort: Number(envOverrides.HEALTH_PORT),
       });
       expect(Object.isFrozen(cfg)).toBe(true);
     });
