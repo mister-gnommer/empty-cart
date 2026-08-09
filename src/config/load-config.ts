@@ -1,6 +1,6 @@
 // loadConfig — pure validator. Throws ConfigError on first invalid env field.
-// Does NOT log (contracts/config.md §2: the composition root owns the fatal
-// log line). The returned Config is frozen (§4).
+// Does NOT log (the composition root owns the fatal
+// log line). The returned Config is frozen.
 import type { Config } from '../shared/types';
 import { configSchema } from './schema';
 
@@ -34,7 +34,7 @@ export class ConfigError extends Error {
     envField: string;
     reason: 'missing' | 'malformed';
   }) {
-    // Message intentionally omits any value (contracts/config.md §2).
+    // Message intentionally omits any value.
     super(`ConfigError: ${args.envField} ${args.reason}`);
     this.name = 'ConfigError';
     this.envField = args.envField;
@@ -80,7 +80,7 @@ function validateField(
   if (raw === '') {
     if (required) {
       // `DISCORD_TOKEN=` left blank in the env file → 'missing' (matches
-      // the operator intent per FR-003's "missing" wording).
+      // the operator intent behind the 'missing' classification).
       return { error: new ConfigError({ envField: envName, reason: 'missing' }) };
     }
     // Optional field explicitly set to '' — for fields requiring non-empty

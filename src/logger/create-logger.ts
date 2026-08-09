@@ -1,5 +1,5 @@
 // Logger — pino NDJSON to stdout, redact.paths covering discordToken and the
-// documented token shapes (contracts/logger.md §3). Default destination is
+// documented token shapes. Default destination is
 // SonicBoom (`sync: false`); SonicBoom registers a `process.on('exit')` handler
 // that sync-flushes the buffer before the process terminates, and pino's
 // `fatal` auto-sync-flushes — so callers MUST NOT await `flush()` (it returns
@@ -18,12 +18,12 @@ export function createLogger(config: Pick<Config, 'logLevel'>): Logger {
 }
 
 export function createBootstrapLogger(env: NodeJS.ProcessEnv): Logger {
-  // Pre-validation logger; performs NO env validation (contracts/logger.md).
+  // Pre-validation logger; performs NO env validation.
   // Reads env.LOG_LEVEL directly with fallback to 'info'.
   const level = (env.LOG_LEVEL ?? 'info') as Config['logLevel'];
   // If LOG_LEVEL is set to something bogus, pino would ignore levels it does
   // not recognise; clamp to 'info' to keep the bootstrap logger usable for the
-  // FR-003 fatal line regardless of stray env input.
+  // fatal startup line regardless of stray env input.
   const allowed = ['trace', 'debug', 'info', 'warn', 'error', 'fatal'];
   const safeLevel = allowed.includes(level) ? level : 'info';
   return pino({
@@ -33,8 +33,8 @@ export function createBootstrapLogger(env: NodeJS.ProcessEnv): Logger {
 }
 
 export function createEmergencyLogger(): Logger {
-  // Writes NDJSON to process.stderr (no stdout dependency). Per
-  // contracts/logger.md §7: if process.stderr is also unavailable, this
+  // Writes NDJSON to process.stderr (no stdout dependency). If
+  // process.stderr is also unavailable, this
   // constructor throws and the caller exits non-zero without logging as a
   // last resort. We bind directly to the `process.stderr` stream object
   // (rather than pino.destination({ dest: 2 }) — which writes via the FD

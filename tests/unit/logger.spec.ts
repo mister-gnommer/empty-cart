@@ -39,8 +39,8 @@ function makeStreamLogger(level: Config['logLevel'] = 'info') {
   };
 }
 
-describe('logger (contracts/logger.md)', () => {
-  describe('redact.paths — SC-006 backstop', () => {
+describe('logger', () => {
+  describe('redact.paths — redaction backstop', () => {
     it('object shaped { config: { discordToken: "x" } } serializes with "[Redacted]" and never "x" (depth-2 *.discordToken)', () => {
       const { logger, chunks } = makeStreamLogger('info');
       logger.info({ config: { discordToken: 'x' } }, 'msg');
@@ -146,7 +146,7 @@ describe('logger (contracts/logger.md)', () => {
     });
   });
 
-  describe('emergency logger (contracts/logger.md §7)', () => {
+  describe('emergency logger (stderr fallback)', () => {
     it('createEmergencyLogger writes a fatal line to process.stderr and applies redact.paths', () => {
       const captured: string[] = [];
       const spy = vi

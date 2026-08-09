@@ -1,5 +1,5 @@
-// Health server — node:http on loopback, no Discord round-trip (FR-007).
-// Implements contracts/health.md §3 (mapper) + §1-§7 (server lifecycle).
+// Health server — node:http on loopback, no Discord round-trip. Implements
+// the health-status mapper and the server lifecycle.
 import { createServer, type Server } from 'node:http';
 import type { Logger } from 'pino';
 import type { BotState, HealthStatus } from '../shared/types';
@@ -60,7 +60,7 @@ export function startHealthServer(deps: {
       return;
     }
     // All other paths/methods → 404 `{ error: "not found" }`.
-    // Per contracts/health.md §2, also non-GET methods map to 404 rather than
+    // Non-GET methods also map to 404 rather than
     // 405 (single-status contract: anything that's not GET /healthz is 404).
     res.writeHead(404, { 'content-type': 'application/json' });
     res.end(JSON.stringify({ error: 'not found' }));

@@ -1,5 +1,5 @@
-// Single entrypoint for `node dist/index.js` (per `package.json` scripts.start
-// and contracts/lifecycle.md). Calls `runApp()`; any rejection that escapes
+// Single entrypoint for `node dist/index.js` (per `package.json` scripts.start).
+// Calls `runApp()`; any rejection that escapes
 // (none should) results in a non-zero exit — the upstream fatal-handler is
 // already responsible for logging the failure and exiting 1; this catch is the
 // defensive backstop.

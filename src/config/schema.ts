@@ -1,4 +1,4 @@
-// Zod schema for the env-config (data-model.md Entity 1 + research R5).
+// Zod schema for the env-config.
 // This is the ONLY module permitted to import zod (enforced by
 // eslint.config.mjs's `no-restricted-paths` zone).
 import { z } from 'zod';
@@ -9,8 +9,7 @@ const noWhitespaceString = z
   .string()
   .refine((v) => !/\s/u.test(v), { message: 'must not contain whitespace' });
 
-// IPv4 literal only (loopback-only intent for v1; IPv6 `::1` rejected per
-// data-model.md Entity 1 §Validation note).
+// IPv4 literal only (loopback-only intent for v1; IPv6 `::1` rejected).
 const ipv4Literal = z
   .string()
   .refine((v) => /^(25[0-5]|2[0-4]\d|1?\d{1,2})(\.(25[0-5]|2[0-4]\d|1?\d{1,2})){3}$/u.test(v), {

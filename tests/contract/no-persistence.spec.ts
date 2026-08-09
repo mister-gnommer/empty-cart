@@ -2,7 +2,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// FR-008 / spec Edge Cases: "MUST NOT retain echo command payloads after the
+// No-persistence guarantee: "MUST NOT retain echo command payloads after the
 // command has been handled." Belt-and-suspenders to the design discipline: the
 // echo, discord, and lifecycle modules MUST NOT import or use a persistence
 // mechanism that would retain UserCommand.args or EchoResult.reply beyond the
@@ -45,12 +45,13 @@ function listTs(dir: string, out: string[] = []): string[] {
   return out;
 }
 
-describe('FR-008 no-persistence static scan', () => {
+describe('no-persistence static scan', () => {
   for (const root of SCAN_ROOTS) {
     it(`no persistence primitive reaches ${root.replace(/^.*src\//, 'src/')}`, () => {
       const files = listTs(root);
       // Tolerate empty subtrees: the contract only asserts "no offender",
-      // not "files must exist". Empty subtrees trivially satisfy FR-008.
+      // not "files must exist". Empty subtrees trivially satisfy the
+      // no-persistence guarantee.
       const offenders: string[] = [];
       for (const f of files) {
         const src = readFileSync(f, 'utf8');

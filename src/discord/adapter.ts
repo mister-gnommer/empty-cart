@@ -1,10 +1,10 @@
 // createDiscordAdapter — the ONLY module permitted to import discord.js
 // (Constitution Principle II; enforced by eslint.config.mjs's
 // no-restricted-modules zone on compiled dist/discord/** output). Implements
-// contracts/discord.md: §1 intents, §2 event→state mapping with reconnect
-// correlationId, §3 message routing with childFor(correlationId),
-// §4 allowedMentions empty-parse on every send, §5 handler-throw canonical
-// error reply, §6 bounded retry ceiling, §7 clean shutdown.
+// Implements the discord contract: intents, event→state mapping with reconnect
+// correlationId, message routing with childFor(correlationId),
+// allowedMentions empty-parse on every send, handler-throw canonical
+// error reply, bounded retry ceiling, clean shutdown.
 import { Client, Events, GatewayIntentBits, type Message } from 'discord.js';
 import type { Logger } from 'pino';
 import type { handleEchoCommand } from '../echo/handle-echo';
@@ -38,7 +38,7 @@ export function createDiscordAdapter(deps: {
    * owns its own transport). Tests inject a factory returning a stubbed
    * Client (login/destroy stubbed) so contract tests can drive events
    * through the same Client reference the adapter registered listeners on.
-   * This is NOT part of contracts/discord.md's public surface; production
+   * This is NOT part of the adapter's public surface; production
    * callers never see it.
    */
   clientFactory?: () => Client;
@@ -59,10 +59,10 @@ export function createDiscordAdapter(deps: {
   let stopping = false;
   // Reconnect correlation id that survives from ShardDisconnect → subsequent
   // ShardResumed/ShardReady so the disconnect→reconnect pair is traceable
-  // (FR-012 / contracts/discord.md §2).
+  // as one unit.
   let pendingReconnectCorrelationId: string | null = null;
 
-  // In-flight §6 retry loops; stop() aborts them all.
+  // In-flight retry loops; stop() aborts them all.
   const activeAbortControllers = new Set<AbortController>();
 
   function setState(s: ConnectionState): void {

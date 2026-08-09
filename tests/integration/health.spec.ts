@@ -23,7 +23,7 @@ function makeState(phase: ProcessPhase, discord: ConnectionState): BotState {
   };
 }
 
-describe('integration: /healthz over real node:http (contracts/health.md)', () => {
+describe('integration: /healthz over real node:http', () => {
   let servers: HealthServer[] = [];
   afterEach(async () => {
     for (const s of servers) {
@@ -157,7 +157,7 @@ describe('integration: /healthz over real node:http (contracts/health.md)', () =
     expect(JSON.stringify(obj)).not.toMatch(/discordToken|SECRET|env/i);
   });
 
-  it('response within 1 s budget (SC-004)', async () => {
+  it('response within 1 s budget', async () => {
     const botState = makeState('running', 'connected');
     const { port } = await startServer(botState);
     const start = Date.now();

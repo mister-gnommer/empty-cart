@@ -1,4 +1,4 @@
-// Shared cross-module types — authoritative source per data-model.md.
+// Shared cross-module types — authoritative source for the data model.
 // No module imports from outside src/shared/types except as needed for type
 // definitions; this module holds no behavior (Constitution Principle II).
 

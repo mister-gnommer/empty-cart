@@ -11,7 +11,7 @@ function makeState(
   return { phase, discord, startedAt, lastStateChangeAt };
 }
 
-describe('mapHealthStatus (contracts/health.md §3 mapper)', () => {
+describe('mapHealthStatus mapper', () => {
   describe('phase × discord → HTTP code + status (full table)', () => {
     for (const phase of ['starting', 'running'] as const) {
       it(`${phase} + connected → 200 healthy`, () => {

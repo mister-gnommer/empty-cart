@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Config } from '../../src/shared/types';
 import { ConfigError, loadConfig } from '../../src/config/load-config';
+import type { Config } from '../../src/shared/types';
 
 const VALID: NodeJS.ProcessEnv = {
   DISCORD_TOKEN: 'tok',
@@ -44,7 +44,7 @@ function expectError(
   expect(caught!.message).not.toContain(VALID.SHUTDOWN_TIMEOUT_MS);
 }
 
-describe('loadConfig (contracts/config.md)', () => {
+describe('loadConfig', () => {
   describe('golden path', () => {
     it('returns a frozen Config with inferred shape and defaults applied', () => {
       const cfg = loadConfig({ DISCORD_TOKEN: DEFAULT_CONFIG.discordToken });
@@ -84,7 +84,7 @@ describe('loadConfig (contracts/config.md)', () => {
       delete env.DISCORD_TOKEN;
       expectError(env, 'DISCORD_TOKEN', 'missing');
     });
-    it('empty string → ConfigError missing (treated as missing per FR-003 wording)', () => {
+    it('empty string → ConfigError missing (blank value classified as missing)', () => {
       expectError({ ...VALID, DISCORD_TOKEN: '' }, 'DISCORD_TOKEN', 'missing');
     });
   });

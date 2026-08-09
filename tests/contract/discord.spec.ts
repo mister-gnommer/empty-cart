@@ -147,7 +147,7 @@ async function dispatchMessage(client: Client, message: FakeMessage): Promise<vo
   await new Promise((r) => setTimeout(r, 500));
 }
 
-describe('discord adapter contract (contracts/discord.md)', () => {
+describe('discord adapter contract', () => {
   let originalProcessExit: typeof process.exit;
   beforeEach(() => {
     originalProcessExit = process.exit;
@@ -159,7 +159,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
     process.exit = originalProcessExit;
   });
 
-  describe('§2 event → state mapping (with reconnect correlationId)', () => {
+  describe('event → state mapping (with reconnect correlationId)', () => {
     it('ClientReady sets botState.discord=connected and phase=running, logs discord connected', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();
@@ -172,7 +172,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       await adapter.stop();
     });
 
-    it('ShardDisconnect → reconnecting with fresh correlationId, then ShardResume → connected carrying the SAME correlationId (FR-012)', async () => {
+    it('ShardDisconnect → reconnecting with fresh correlationId, then ShardResume → connected carrying the SAME correlationId', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();
       const client = makeStubbedClient();
@@ -193,7 +193,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
       await adapter.stop();
     });
 
-    it('ShardReady after a disconnect carries the same correlationId (FR-012)', async () => {
+    it('ShardReady after a disconnect carries the same correlationId', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();
       const client = makeStubbedClient();
@@ -227,7 +227,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
     });
   });
 
-  describe('§4 no ghost-ping — allowedMentions on every send branch', () => {
+  describe('no ghost-ping — allowedMentions on every send branch', () => {
     it('echoed reply is sent with allowedMentions {parse: [], users: [], roles: []}', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();
@@ -294,7 +294,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
     });
   });
 
-  describe('§5 handler-throw — canonical user-facing error reply (byte-equal, no exception leaked)', () => {
+  describe('handler-throw — canonical user-facing error reply (byte-equal, no exception leaked)', () => {
     it('on handler throw, sends the canonical string + logs msg="command handler threw"', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();
@@ -322,7 +322,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
     });
   });
 
-  describe('§6 bounded transient-transport retry', () => {
+  describe('bounded transient-transport retry', () => {
     it('honors attempts ≤ 3 when channel.send always rejects (shutdownTimeoutMs=4000 → totalMs=2000)', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();
@@ -398,7 +398,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
     });
   });
 
-  describe('§7 clean shutdown', () => {
+  describe('clean shutdown', () => {
     it('stop() removes MessageCreate listener, calls client.destroy(), sets destroyed, logs discord disconnected', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();
@@ -428,7 +428,7 @@ describe('discord adapter contract (contracts/discord.md)', () => {
     });
   });
 
-  describe('§8 logs never contain raw args/reply text', () => {
+  describe('logs never contain raw args/reply text', () => {
     it('command-received and command-handled lines carry length fields only, not content', async () => {
       const cap = makeCapturingLogger();
       const botState = makeBotState();

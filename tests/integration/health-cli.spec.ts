@@ -48,7 +48,7 @@ function runCli(
   });
 }
 
-describe('integration: src/health-cli.ts (contracts/health.md + T023a)', () => {
+describe('integration: src/health-cli.ts', () => {
   let servers: Server[] = [];
   beforeEach(() => {
     servers = [];
@@ -96,7 +96,7 @@ describe('integration: src/health-cli.ts (contracts/health.md + T023a)', () => {
     expect(r.exitCode).toBe(1);
   });
 
-  it('issues GET requests only (no side effects, FR-007)', async () => {
+  it('issues GET requests only (no side effects)', async () => {
     const calls: { path: string; method: string }[] = [];
     const { server, port } = await startStubServer(200, { status: 'healthy' }, calls);
     servers.push(server);

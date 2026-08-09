@@ -55,7 +55,7 @@ function makeStubbedClient(): Client {
   return client;
 }
 
-describe('integration: !echo round trip (contracts/discord.md §integration)', () => {
+describe('integration: !echo round trip', () => {
   it('hand-driven Events.MessageCreate produces the echoed reply on a stubbed channel.send with correlationId on every log line of the handler call', async () => {
     const cap = makeCapturingLogger();
     const botState: BotState = {

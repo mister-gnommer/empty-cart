@@ -1,5 +1,5 @@
-// handleEchoCommand — pure function per contracts/echo.md §Behavioral contract.
-// No I/O, no logger, no module-scoped mutable state. The discord adapter owns
+// handleEchoCommand — pure function. No I/O, no logger, no module-scoped
+// mutable state. The discord adapter owns
 // logging and the send call (with allowedMentions).
 import type { Config, EchoResult } from '../shared/types';
 

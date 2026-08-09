@@ -5,11 +5,11 @@ import { handleEchoCommand } from '../../src/echo/handle-echo';
 import { childFor, createBootstrapLogger, createLogger } from '../../src/logger/create-logger';
 import type { Config } from '../../src/shared/types';
 
-// End-to-end SC-006 path: representative startup → echo-handle → shutdown
+// End-to-end redaction path: representative startup → echo-handle → shutdown
 // event sequence through the REAL logger (pino to a captured stdout sink),
 // asserting no log line contains the literal DISCORD_TOKEN env value
 // anywhere in the output (wire-format JSON, redaction backstop + the
-// "logs never contain content" rule from contracts/discord.md §8).
+// "logs never contain content" rule).
 
 function capture(): { stream: Writable; lines: () => Record<string, unknown>[] } {
   const chunks: string[] = [];
@@ -43,12 +43,12 @@ const config: Config = {
   healthPort: 8081,
 };
 
-describe('SC-006 redaction end-to-end (tests/integration/logger.redaction.spec.ts)', () => {
+describe('redaction end-to-end (tests/integration/logger.redaction.spec.ts)', () => {
   it('startup → echo-handle → shutdown sequence emits zero log lines containing the literal DISCORD_TOKEN value', () => {
     const sink = capture();
     // createLogger uses pino's default destination — for the test we bind a
     // pino logger directly to our captured stream using the same redact.paths
-    // shape contracts/logger.md §3 mandates. This exercises the contract on
+    // shape the logger contract mandates. This exercises the contract on
     // the REAL logger-creation path parametrically.
     const redactPaths = ['discordToken', '*.discordToken', '*.token', 'token', '*.*.token'];
     const logger = pino(
@@ -63,7 +63,7 @@ describe('SC-006 redaction end-to-end (tests/integration/logger.redaction.spec.t
     void createBootstrapLogger; // exercised implicitly via createLogger path
     const realLogger = createLogger(config);
     void realLogger; // cover the contract API; the assertions below use the
-    // captured logger to exercise the SC-006 wire format on a known sink.
+    // captured logger to exercise the redaction wire format on a known sink.
 
     // --- startup events ---
     logger.info({
@@ -98,10 +98,10 @@ describe('SC-006 redaction end-to-end (tests/integration/logger.redaction.spec.t
 
     const lines = sink.lines();
     expect(lines.length).toBeGreaterThan(0);
-    // SC-006: zero secrets in any log line.
+    // Zero secrets in any log line.
     for (const line of lines) {
       const json = JSON.stringify(line);
-      expect(json, `SC-006 leak:\n${json}`).not.toContain(SECRET_TOKEN);
+      expect(json, `redaction leak:\n${json}`).not.toContain(SECRET_TOKEN);
     }
     // Sanity: the token value WAS passed in some fields — confirm redaction
     // fired (the wire output contains "[Redacted]" rather than the value).

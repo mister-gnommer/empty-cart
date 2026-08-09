@@ -2,12 +2,12 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
-// FR-008 / Constitution Principle IV: structural purity check for the echo
-// core. `handleEchoCommand` MUST NOT reference any module-scoped mutable
+// Structural purity check for the echo core (Constitution Principle IV).
+// `handleEchoCommand` MUST NOT reference any module-scoped mutable
 // variable (`let`/`var` at module scope that survives across calls). A pure
 // function of (cmd, config) cannot accidentally retain payloads across
 // commands if it has no module-scoped mutable state. This contract is
-// distinct from T011 (behavior) and T012 (adapter).
+// distinct from the behavioral and adapter tests.
 const SRC_PATH = resolve(__dirname, '../../src/echo/handle-echo.ts');
 
 /** Strip line comments, block comments, and string/template literals to avoid
@@ -48,7 +48,7 @@ function stripLiteralsAndComments(src: string): string {
   return out;
 }
 
-describe('echo module-scope purity (FR-008 / Principle IV)', () => {
+describe('echo module-scope purity (Principle IV)', () => {
   it('handleEchoCommand references no module-scoped let/var variable', () => {
     const src = readFileSync(SRC_PATH, 'utf8');
     const cleaned = stripLiteralsAndComments(src);

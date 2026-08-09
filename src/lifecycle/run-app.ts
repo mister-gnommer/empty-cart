@@ -1,7 +1,7 @@
 // runApp — composition root. Owns process-signal listeners and the shutdown
-// budget. The only module that calls `process.exit`. Per contracts/lifecycle.md
-// §1 startup order, §2 signal handling, §3 shutdown race, §4 no flush, §5 exit
-// discipline.
+// budget. The only module that calls `process.exit`. Startup order, signal
+// handling, shutdown race, no flush, and exit discipline follow the lifecycle
+// contract.
 import { ConfigError, loadConfig } from '../config/load-config';
 import type { DiscordAdapter } from '../discord/adapter';
 import { createDiscordAdapter } from '../discord/adapter';
@@ -30,8 +30,7 @@ export async function runApp(): Promise<void> {
       emergencyLog = createEmergencyLogger();
     } catch {
       // process.stderr is also unavailable — exit non-zero without logging
-      // as the last resort (contracts/lifecycle.md §1 step 0 / spec Edge
-      // Case "log destination unavailable").
+      // as the last resort (log destination unavailable).
       process.exit(1);
       return;
     }

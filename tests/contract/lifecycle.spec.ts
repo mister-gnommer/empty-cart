@@ -243,8 +243,8 @@ afterEach(() => {
   vi.doUnmock('../../src/lifecycle/run-app');
 });
 
-describe('lifecycle contract (contracts/lifecycle.md)', () => {
-  describe('§1 startup order', () => {
+describe('lifecycle contract', () => {
+  describe('startup order', () => {
     it('on ConfigError loadConfig → exactly one fatal msg="config validation failed" via bootLog + exit 1', async () => {
       const env = await loadAppWithMocks({
         loadConfigThrowsEnvField: 'DISCORD_TOKEN',
@@ -270,7 +270,7 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
     });
   });
 
-  describe('§2 + §3 SIGTERM success-path shutdown', () => {
+  describe('SIGTERM success-path shutdown', () => {
     it('SIGTERM → "shutdown requested" (reason=SIGTERM) → adapter.stop() + healthServer.stop() called → "shutdown complete" (phase=shutting-down) → exit 0; NO logger.flush()', async () => {
       const env = await loadAppWithMocks({
         loadConfigImpl: () => makeConfig({ shutdownTimeoutMs: 5000 }),
@@ -295,7 +295,7 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
     });
   });
 
-  describe('§2 second-signal idempotency', () => {
+  describe('second-signal idempotency', () => {
     it('second SIGTERM during shutdown → exactly one warn msg="shutdown already in progress" with a correlationId field; no re-entry', async () => {
       // Make adapter.stop() hang forever so the shutdown budget is "in flight"
       // when the second signal arrives.
@@ -330,7 +330,7 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
     });
   });
 
-  describe('§3 budget exhaustion → exit 1', () => {
+  describe('budget exhaustion → exit 1', () => {
     it('when adapter.stop exceeds budget → one warn msg="shutdown budget exceeded" + exit 1; no "shutdown complete"', async () => {
       let resolveStop: () => void = () => {};
       const hangingStop = new Promise<void>((r) => {
@@ -384,9 +384,9 @@ describe('lifecycle contract (contracts/lifecycle.md)', () => {
       await new Promise((r) => setImmediate(r));
       await dispatchSignal(SIGINT);
       await expect(p).rejects.toThrow(/process\.exit/);
-      expect(
-        env.cap.lines.some((l) => l.msg === 'shutdown requested' && l.reason === SIGINT),
-      ).toBe(true);
+      expect(env.cap.lines.some((l) => l.msg === 'shutdown requested' && l.reason === SIGINT)).toBe(
+        true,
+      );
     });
   });
 

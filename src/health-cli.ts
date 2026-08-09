@@ -1,10 +1,10 @@
 // health-cli — optional operator convenience wrapper around the loopback
-// /healthz endpoint (contracts/health.md; quickstart.md US3 independent-test
-// alternative). HTTP-GETs http://$HEALTH_HOST:$HEALTH_PORT/healthz (env-driven,
+// /healthz endpoint (independent-test alternative to the Discord interface).
+// HTTP-GETs http://$HEALTH_HOST:$HEALTH_PORT/healthz (env-driven,
 // defaults 127.0.0.1:8081 when unset), prints the response body verbatim to
 // stdout, exits 0 on a 2xx response and 1 on any non-2xx response or
 // connection failure. GET-only; no writes — the /healthz endpoint is the only
-// health surface and the CLI adds NO side effects (FR-007).
+// health surface and the CLI adds NO side effects.
 import { get } from 'node:http';
 
 function envInt(name: string, fallback: number): number {
