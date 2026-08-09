@@ -3,33 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import type { BotState, Config } from '../../src/shared/types';
-
-type LoggedLine = { level: string; msg: string; [k: string]: unknown };
-
-function makeCapturingLogger(): { logger: unknown; lines: LoggedLine[] } {
-  const lines: LoggedLine[] = [];
-  function make(bindings: Record<string, unknown> = {}): unknown {
-    function emit(severity: string, args: unknown[]): void {
-      let merged: Record<string, unknown> = { ...bindings, level: severity };
-      for (const a of args) {
-        if (a && typeof a === 'object') {
-          merged = { ...merged, ...(a as Record<string, unknown>) };
-        }
-      }
-      lines.push({ ...merged, msg: String(merged.msg ?? '') });
-    }
-    return {
-      info: (...a: unknown[]) => emit('info', a),
-      warn: (...a: unknown[]) => emit('warn', a),
-      error: (...a: unknown[]) => emit('error', a),
-      fatal: (...a: unknown[]) => emit('fatal', a),
-      debug: (...a: unknown[]) => emit('debug', a),
-      trace: (...a: unknown[]) => emit('trace', a),
-      child: (b: Record<string, unknown>) => make({ ...bindings, ...b }),
-    };
-  }
-  return { logger: make(), lines };
-}
+import { makeCapturingLogger } from '../helpers/logger';
 
 const config: Config = {
   discordToken: 'tok',
@@ -50,6 +24,8 @@ function makeStubbedClient(): Client {
       GatewayIntentBits.MessageContent,
     ],
   });
+  // Safe: stubs replace network I/O with no-ops; the method shapes match the
+  // real Client.login/destroy signatures so the adapter calls them unaltered.
   client.login = (async () => 'stub-token') as typeof client.login;
   client.destroy = (async () => undefined) as typeof client.destroy;
   return client;
@@ -67,6 +43,8 @@ describe('integration: !echo round trip', () => {
     const client = makeStubbedClient();
     const adapter = createDiscordAdapter({
       config,
+      // Safe: the capturing logger satisfies pino's Logger call surface
+      // structurally; `as never` only bridges the nominal pino import.
       logger: cap.logger as never,
       botState,
       echo: handleEchoCommand,
@@ -82,23 +60,21 @@ describe('integration: !echo round trip', () => {
         channel: { id: 'channel-9', send },
       };
 
-      client.emit(Events.MessageCreate, message);
-      // Flush microtasks for the async handler.
-      for (let i = 0; i < 5; i++) {
-        await new Promise((r) => setImmediate(r));
-      }
+      // The stub message is a partial stand-in for the real Message object.
+      client.emit(Events.MessageCreate, message as never);
+      // Wait for the async handler to send the reply and emit both log lines.
+      await vi.waitFor(() => {
+        expect(send).toHaveBeenCalledTimes(1);
+        expect(cap.lines.find((l) => l.msg === 'command received')).toBeDefined();
+        expect(cap.lines.find((l) => l.msg === 'command handled')).toBeDefined();
+      });
 
-      // The reply was echoed on the stubbed channel.send.
-      expect(send.mock.calls.length).toBe(1);
-      const payload = send.mock.calls[0]![0] as {
-        content: string;
-        allowedMentions: unknown;
-      };
-      expect(payload.content).toBe('integration round trip');
-      expect(payload.allowedMentions).toEqual({
-        parse: [],
-        users: [],
-        roles: [],
+      // The reply was echoed on the stubbed channel.send. Assert via
+      // toHaveBeenCalledWith (deep-equal of the call arg) to avoid indexing
+      // the mock's untyped calls array or casting the payload by hand.
+      expect(send).toHaveBeenCalledWith({
+        content: 'integration round trip',
+        allowedMentions: { parse: [], users: [], roles: [] },
       });
 
       // correlationId on every log line of the handler call.
@@ -106,16 +82,17 @@ describe('integration: !echo round trip', () => {
       const handled = cap.lines.find((l) => l.msg === 'command handled');
       expect(rcv).toBeDefined();
       expect(handled).toBeDefined();
+      // Safe: handled was asserted defined on the previous line; vitest
+      // throws synchronously on failure, so `handled!` is non-null here.
       expect(handled!.status).toBe('echoed');
-      const corrId = String(rcv!.correlationId);
-      expect(corrId).toMatch(/.+/);
+      const corrId = rcv?.correlationId;
+      expect(corrId).toBeTypeOf('string');
       for (const line of cap.lines) {
-        expect(String(line.correlationId)).toBe(corrId);
+        expect(line.correlationId).toBe(corrId);
       }
-      // BotState discord was set to connected by ClientReady — but we did not
+      // BotState.discord was set to connected by ClientReady — but we did not
       // raise ClientReady here, so it stays `disconnected`. The echo round
-      // trip correctness does NOT require a gateway-up line (US1 independent
-      // test spec).
+      // trip correctness does not require a gateway connection.
       expect(botState.discord).toBe('disconnected');
     } finally {
       await adapter.stop();

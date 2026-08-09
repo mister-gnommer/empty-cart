@@ -17,6 +17,8 @@ function startStubServer(
       res.end(typeof body === 'string' ? body : JSON.stringify(body));
     });
     server.listen(0, HOST, () => {
+      // Safe: listen(0, ...) binds a TCP socket, so address() returns an
+      // AddressInfo (a pipe path string only comes from unix socket binding).
       const addr = server.address() as AddressInfo;
       resolve({ server, port: addr.port });
     });
@@ -26,7 +28,7 @@ function startStubServer(
 function runCli(
   env: NodeJS.ProcessEnv,
 ): Promise<{ stdout: string; stderr: string; exitCode: number | null }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     // Run the shipped CLI via tsx (the dev runner) so the test exercises the
     // real source, not a compiled artifact that may be stale.
     const child = spawn('npx', ['tsx', 'src/health-cli.ts'], {
@@ -42,6 +44,7 @@ function runCli(
     child.stderr.on('data', (c) => {
       stderr += c.toString();
     });
+    child.on('error', reject);
     child.on('close', (code) => {
       resolve({ stdout, stderr, exitCode: code });
     });

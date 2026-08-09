@@ -2,7 +2,7 @@ import { Writable } from 'node:stream';
 import pino from 'pino';
 import { describe, expect, it } from 'vitest';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
-import { childFor, createBootstrapLogger, createLogger } from '../../src/logger/create-logger';
+import { childFor, REDACT_PATHS } from '../../src/logger/create-logger';
 import type { Config } from '../../src/shared/types';
 
 // End-to-end redaction path: representative startup → echo-handle → shutdown
@@ -26,6 +26,7 @@ function capture(): { stream: Writable; lines: () => Record<string, unknown>[] }
         .join('')
         .split('\n')
         .filter(Boolean)
+        // Safe: pino writes NDJSON objects, so JSON.parse yields a record.
         .map((l) => JSON.parse(l) as Record<string, unknown>),
   };
 }
@@ -43,27 +44,19 @@ const config: Config = {
   healthPort: 8081,
 };
 
-describe('redaction end-to-end (tests/integration/logger.redaction.spec.ts)', () => {
+describe('redaction end-to-end', () => {
   it('startup → echo-handle → shutdown sequence emits zero log lines containing the literal DISCORD_TOKEN value', () => {
     const sink = capture();
-    // createLogger uses pino's default destination — for the test we bind a
-    // pino logger directly to our captured stream using the same redact.paths
-    // shape the logger contract mandates. This exercises the contract on
-    // the REAL logger-creation path parametrically.
-    const redactPaths = ['discordToken', '*.discordToken', '*.token', 'token', '*.*.token'];
+    // Bind a pino logger to the captured sink using the production REDACT_PATHS
+    // constant, so the wire-format redaction under test is identical to what
+    // createLogger configures — drift between the two is impossible.
     const logger = pino(
       {
         level: 'debug',
-        redact: { paths: redactPaths, censor: '[Redacted]' },
+        redact: { paths: REDACT_PATHS, censor: '[Redacted]' },
       },
       sink.stream,
     );
-
-    // --- startup-fatal path uses createBootstrapLogger + createLogger ---
-    void createBootstrapLogger; // exercised implicitly via createLogger path
-    const realLogger = createLogger(config);
-    void realLogger; // cover the contract API; the assertions below use the
-    // captured logger to exercise the redaction wire format on a known sink.
 
     // --- startup events ---
     logger.info({
@@ -78,7 +71,9 @@ describe('redaction end-to-end (tests/integration/logger.redaction.spec.ts)', ()
     //     config never logged at value level by the contract) ---
     const cmd = { args: 'hello <@123> @everyone chosen-data' };
     const result = handleEchoCommand(cmd, config);
-    const corrId = 'corr-SC006-001';
+    const corrId = 'corr-redaction-001';
+    // Safe: `logger` is a real pino Logger built above; `as never` only
+    // bridges the nominal import expected by childFor's signature.
     const log = childFor(logger as never, corrId) as typeof logger;
     log.info({
       msg: 'command received',

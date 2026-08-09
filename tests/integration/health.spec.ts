@@ -44,32 +44,14 @@ describe('integration: /healthz over real node:http', () => {
         fatal: () => undefined,
         debug: () => undefined,
         trace: () => undefined,
+        // Safe: the health server never calls `.child()` in its code path;
+        // the `as never` pair only satisfies pino's Logger type for this stub.
         child: () => ({}) as never,
       } as never,
     });
     servers.push(s);
     await new Promise((r) => setImmediate(r));
     return { server: s, port };
-  }
-
-  function get(port: number, path: string): Promise<{ status: number; body: string }> {
-    return new Promise((resolve, reject) => {
-      const req = request({ host: HOST, port, path, method: 'GET', timeout: 1000 }, (res) => {
-        let body = '';
-        res.setEncoding('utf8');
-        res.on('data', (chunk) => {
-          body += chunk;
-        });
-        res.on('end', () => {
-          resolve({ status: res.statusCode ?? 0, body });
-        });
-      });
-      req.on('error', reject);
-      req.on('timeout', () => {
-        req.destroy(new Error('timeout'));
-      });
-      req.end();
-    });
   }
 
   function requestMethod(
@@ -100,22 +82,22 @@ describe('integration: /healthz over real node:http', () => {
 
     botState.phase = 'running';
     botState.discord = 'connected';
-    let r = await get(port, '/healthz');
+    let r = await requestMethod(port, '/healthz', 'GET');
     expect(r.status).toBe(200);
     expect(JSON.parse(r.body).status).toBe('healthy');
 
     botState.discord = 'disconnected';
-    r = await get(port, '/healthz');
+    r = await requestMethod(port, '/healthz', 'GET');
     expect(r.status).toBe(200);
     expect(JSON.parse(r.body).status).toBe('degraded');
 
     botState.phase = 'shutting-down';
-    r = await get(port, '/healthz');
+    r = await requestMethod(port, '/healthz', 'GET');
     expect(r.status).toBe(503);
     expect(JSON.parse(r.body).status).toBe('shutting-down');
 
     botState.phase = 'stopped';
-    r = await get(port, '/healthz');
+    r = await requestMethod(port, '/healthz', 'GET');
     expect(r.status).toBe(503);
     expect(JSON.parse(r.body).status).toBe('unhealthy');
   });
@@ -124,8 +106,8 @@ describe('integration: /healthz over real node:http', () => {
     const botState = makeState('running', 'connected');
     const { port } = await startServer(botState);
     botState.phase = 'shutting-down';
-    const r1 = await get(port, '/healthz');
-    const r2 = await get(port, '/healthz');
+    const r1 = await requestMethod(port, '/healthz', 'GET');
+    const r2 = await requestMethod(port, '/healthz', 'GET');
     expect(r1.status).toBe(503);
     expect(r2.status).toBe(503);
     expect(JSON.parse(r2.body).status).toBe('shutting-down');
@@ -134,7 +116,7 @@ describe('integration: /healthz over real node:http', () => {
   it('non-/healthz path → 404 {"error":"not found"}', async () => {
     const botState = makeState('running', 'connected');
     const { port } = await startServer(botState);
-    const r = await get(port, '/other');
+    const r = await requestMethod(port, '/other', 'GET');
     expect(r.status).toBe(404);
     expect(JSON.parse(r.body).error).toBe('not found');
   });
@@ -149,7 +131,7 @@ describe('integration: /healthz over real node:http', () => {
   it('response body contains ONLY documented fields (no env, no token, no correlationId)', async () => {
     const botState = makeState('running', 'connected');
     const { port } = await startServer(botState);
-    const r = await get(port, '/healthz');
+    const r = await requestMethod(port, '/healthz', 'GET');
     const obj = JSON.parse(r.body);
     expect(Object.keys(obj).sort()).toEqual(
       ['checkedAt', 'discord', 'phase', 'status', 'uptimeMs'].sort(),
@@ -161,7 +143,7 @@ describe('integration: /healthz over real node:http', () => {
     const botState = makeState('running', 'connected');
     const { port } = await startServer(botState);
     const start = Date.now();
-    await get(port, '/healthz');
+    await requestMethod(port, '/healthz', 'GET');
     expect(Date.now() - start).toBeLessThan(1000);
   });
 });
