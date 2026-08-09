@@ -13,7 +13,7 @@ import {
   createLogger,
 } from '../logger/create-logger';
 import { newCorrelationId } from '../shared/correlation-id';
-import type { BotState } from '../shared/types';
+import type { BotState, ProcessPhase } from '../shared/types';
 
 let shuttingDownInFlight = false;
 
