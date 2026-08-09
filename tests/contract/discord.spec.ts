@@ -2,47 +2,8 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
+import { makeCapturingLogger } from '../helpers/logger';
 import type { BotState, Config } from '../../src/shared/types';
-
-// Capture all log lines emitted by the adapter into an array of objects
-// (parsed NDJSON so assertions can scan field values directly).
-type LoggedLine = {
-  level: string;
-  msg: string;
-  [k: string]: unknown;
-};
-
-function makeCapturingLogger(): {
-  logger: unknown;
-  lines: LoggedLine[];
-} {
-  const lines: LoggedLine[] = [];
-  function make(bindings: Record<string, unknown> = {}): unknown {
-    function emit(severity: string, args: unknown[]): void {
-      let merged: Record<string, unknown> = { ...bindings };
-      for (const a of args) {
-        if (a && typeof a === 'object') {
-          merged = { ...merged, ...(a as Record<string, unknown>) };
-        }
-      }
-      lines.push({
-        ...merged,
-        msg: String(merged.msg ?? ''),
-        level: severity,
-      });
-    }
-    return {
-      info: (...a: unknown[]) => emit('info', a),
-      warn: (...a: unknown[]) => emit('warn', a),
-      error: (...a: unknown[]) => emit('error', a),
-      fatal: (...a: unknown[]) => emit('fatal', a),
-      debug: (...a: unknown[]) => emit('debug', a),
-      trace: (...a: unknown[]) => emit('trace', a),
-      child: (b: Record<string, unknown>) => make({ ...bindings, ...b }),
-    };
-  }
-  return { logger: make(), lines };
-}
 
 const baseConfig: Config = {
   discordToken: 'SECRET-TOKEN-VALUE',

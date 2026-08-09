@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newCorrelationId } from '../../src/shared/correlation-id';
+import { makeCapturingLogger } from '../helpers/logger';
 import type { BotState, Config } from '../../src/shared/types';
 
 const SIGTERM = 'SIGTERM' as const;
@@ -20,37 +21,6 @@ const DEFAULT_CONFIG: Config = {
 
 // Drive lifecycle.runApp() with mocked child modules. We import the module
 // AFTER installing the stubs so its imports resolve to our mocks.
-
-type LoggedLine = { level: string; msg: string; [k: string]: unknown };
-
-function makeCapturingLogger(): {
-  logger: unknown;
-  child: (b: Record<string, unknown>) => unknown;
-  lines: LoggedLine[];
-} {
-  const lines: LoggedLine[] = [];
-  const handlers: Record<string, (severity: string, fields: Record<string, unknown>) => void> = {};
-  function emit(sev: string, args: unknown[], bindings: Record<string, unknown>): void {
-    let merged: Record<string, unknown> = { ...bindings };
-    for (const a of args) {
-      if (a && typeof a === 'object') merged = { ...merged, ...(a as Record<string, unknown>) };
-    }
-    lines.push({ ...merged, level: sev, msg: String(merged.msg ?? '') });
-  }
-  function make(bindings: Record<string, unknown> = {}): unknown {
-    return {
-      info: (...a: unknown[]) => emit('info', a, bindings),
-      warn: (...a: unknown[]) => emit('warn', a, bindings),
-      error: (...a: unknown[]) => emit('error', a, bindings),
-      fatal: (...a: unknown[]) => emit('fatal', a, bindings),
-      debug: (...a: unknown[]) => emit('debug', a, bindings),
-      trace: (...a: unknown[]) => emit('trace', a, bindings),
-      child: (b: Record<string, unknown>) => make({ ...bindings, ...b }),
-    };
-  }
-  void handlers;
-  return { logger: make(), child: (b) => make(b), lines };
-}
 
 function _makeBotState(): BotState {
   return {
