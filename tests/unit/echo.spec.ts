@@ -8,15 +8,12 @@ const baseConfig: Pick<Config, 'echoMaxLength' | 'commandPrefix' | 'echoCommandN
   echoCommandName: 'echo',
 };
 
-const usageHint = `Usage: ${baseConfig.commandPrefix}${baseConfig.echoCommandName} <text>`;
-const tooLongMsg = `Input too long (max ${baseConfig.echoMaxLength} chars).`;
-
 describe('handleEchoCommand', () => {
   it('returns usage-hint with canonical reply on empty args', () => {
     const result = handleEchoCommand({ args: '' }, baseConfig);
     expect(result).toEqual({
       status: 'usage-hint',
-      reply: usageHint,
+      reply: 'Usage: !echo <text>',
     });
   });
 
@@ -24,7 +21,7 @@ describe('handleEchoCommand', () => {
     const result = handleEchoCommand({ args: '   \t\n  ' }, baseConfig);
     expect(result).toEqual({
       status: 'usage-hint',
-      reply: usageHint,
+      reply: 'Usage: !echo <text>',
     });
   });
 
@@ -45,7 +42,15 @@ describe('handleEchoCommand', () => {
     expect(result).toEqual({
       status: 'echoed',
       reply: text,
-      transportShouldNeutralizeMentions: true,
+    });
+  });
+
+  it('echoes args verbatim, preserving leading and trailing whitespace', () => {
+    const text = '  padded  ';
+    const result = handleEchoCommand({ args: text }, baseConfig);
+    expect(result).toEqual({
+      status: 'echoed',
+      reply: text,
     });
   });
 
@@ -54,7 +59,7 @@ describe('handleEchoCommand', () => {
     const result = handleEchoCommand({ args: text }, baseConfig);
     expect(result).toEqual({
       status: 'too-long',
-      reply: tooLongMsg,
+      reply: 'Input too long (max 1900 chars).',
     });
   });
 
@@ -68,29 +73,28 @@ describe('handleEchoCommand', () => {
   });
 
   it.each(['<@123>', '@everyone', '<@&9>', '@here', '@user', '**bold**', '||spoiler||', '>quote'])(
-    'echoes mention/markdown payload %s verbatim with neutralize=true',
+    'echoes mention/markdown payload %s verbatim',
     (payload) => {
       const result = handleEchoCommand({ args: payload }, baseConfig);
       expect(result).toEqual({
         status: 'echoed',
         reply: payload,
-        transportShouldNeutralizeMentions: true,
       });
     },
   );
 
   it('produces independent outputs for consecutive calls with different args', () => {
-    const first = handleEchoCommand({ args: 'first payload' }, baseConfig);
-    const second = handleEchoCommand({ args: 'second payload' }, baseConfig);
+    const firstText = 'first payload';
+    const secondText = 'second payload';
+    const first = handleEchoCommand({ args: firstText }, baseConfig);
+    const second = handleEchoCommand({ args: secondText }, baseConfig);
     expect(first).toEqual({
       status: 'echoed',
       reply: 'first payload',
-      transportShouldNeutralizeMentions: true,
     });
     expect(second).toEqual({
       status: 'echoed',
       reply: 'second payload',
-      transportShouldNeutralizeMentions: true,
     });
   });
 });

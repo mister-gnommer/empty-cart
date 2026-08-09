@@ -28,11 +28,12 @@ export function handleEchoCommand(
   }
 
   // Otherwise echo args verbatim (zero-byte-trim allowed; no other
-  // normalization — the payload is otherwise byte-equal to cmd.args; the
-  // contract signal is asserted unconditionally on `echoed`).
+  // normalization — the payload is otherwise byte-equal to cmd.args). The
+  // discord adapter neutralizes mention tokens on every send
+  // (allowedMentions: { parse: [], users: [], roles: [] }) so this reply can
+  // never ghost-ping — the echo core stays pure and never inspects payloads.
   return {
     status: 'echoed',
     reply: args,
-    transportShouldNeutralizeMentions: true,
   };
 }

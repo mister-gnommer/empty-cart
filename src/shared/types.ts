@@ -38,11 +38,7 @@ export type UserCommand = {
 };
 
 export type EchoResult =
-  | {
-      status: 'echoed';
-      reply: string;
-      transportShouldNeutralizeMentions: true;
-    }
+  | { status: 'echoed'; reply: string }
   | { status: 'too-long'; reply: string }
   | { status: 'usage-hint'; reply: string };
 
