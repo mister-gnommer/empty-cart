@@ -1,11 +1,11 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { newCorrelationId } from '../../src/shared/correlation-id';
-import { makeCapturingLogger } from '../helpers/logger';
 import type { BotState, Config } from '../../src/shared/types';
+import { makeCapturingLogger } from '../helpers/logger';
 
-const SIGTERM = 'SIGTERM' as const;
-const SIGINT = 'SIGINT' as const;
-const SIG_LIST = [SIGTERM, SIGINT] as const;
+const SIGTERM = 'SIGTERM';
+const SIGINT = 'SIGINT';
+const SIG_LIST = [SIGTERM, SIGINT];
 type SigName = (typeof SIG_LIST)[number];
 
 const DEFAULT_CONFIG: Config = {
@@ -69,6 +69,9 @@ async function loadAppWithMocks(opts: {
   const loadConfigMock = opts.loadConfigThrowsEnvField
     ? vi.fn((): Config => {
         throw new ConfigError({
+          // Safe: the outer ternary already checked this is defined; the
+          // closure sees `opts.loadConfigThrowsEnvField` as `string | undefined`
+          // (TS doesn't narrow across the arrow), so the `!` recovers it.
           envField: opts.loadConfigThrowsEnvField!,
           reason: opts.loadConfigThrowsReason ?? 'missing',
         });
@@ -187,13 +190,16 @@ const originalListeners: Record<SigName, NodeJS.Listener[]> = {
 beforeEach(() => {
   exitCalls = [];
   exitShouldThrow = true;
-  process.exit = ((code?: number) => {
+  process.exit = (code?: number) => {
     exitCalls.push(code ?? 0);
     if (exitShouldThrow) {
       throw new Error(`process.exit(${code})`);
     }
+    // Safe: process.exit is declared `(...args) => never`; the stub needs to
+    // satisfy that return type on the non-throwing path, so `undefined as
+    // never` satisfies the signature without a runtime side effect.
     return undefined as never;
-  }) as typeof process.exit;
+  };
 });
 
 afterEach(() => {
@@ -223,8 +229,8 @@ describe('lifecycle contract', () => {
       await expect(env.runApp()).rejects.toThrow(/process\.exit/);
       const fatalLines = env.cap.lines.filter((l) => l.level === 'fatal');
       expect(fatalLines.length).toBe(1);
-      expect(fatalLines[0]!.msg).toBe('config validation failed');
-      expect(fatalLines[0]!.reason).toBe('missing');
+      expect(fatalLines[0].msg).toBe('config validation failed');
+      expect(fatalLines[0].reason).toBe('missing');
       expect(exitCalls).toEqual([1]);
     });
 
@@ -235,7 +241,7 @@ describe('lifecycle contract', () => {
       await expect(env.runApp()).rejects.toThrow(/process\.exit/);
       const fatalLines = env.cap.lines.filter((l) => l.level === 'fatal');
       expect(fatalLines.length).toBe(1);
-      expect(fatalLines[0]!.msg).toMatch(/health/);
+      expect(fatalLines[0].msg).toMatch(/health/);
       expect(exitCalls).toEqual([1]);
     });
   });
@@ -291,7 +297,7 @@ describe('lifecycle contract', () => {
         (l) => l.level === 'warn' && l.msg === 'shutdown already in progress',
       );
       expect(warnLines.length).toBe(1);
-      expect(String(warnLines[0]!.correlationId)).toMatch(/.+/);
+      expect(String(warnLines[0].correlationId)).toMatch(/.+/);
       // adapter.stop was called once (no re-entry).
       expect(env.adapterStop.mock.calls.length).toBe(1);
       // Release the hang and let the race complete.
@@ -336,8 +342,8 @@ describe('lifecycle contract', () => {
       await expect(env.runApp()).rejects.toThrow(/process\.exit/);
       const fatalLines = env.cap.lines.filter((l) => l.level === 'fatal');
       expect(fatalLines.length).toBe(1);
-      expect(fatalLines[0]!.msg).toBe('startup failed');
-      expect(fatalLines[0]!.reason).toBe('stdout unavailable');
+      expect(fatalLines[0].msg).toBe('startup failed');
+      expect(fatalLines[0].reason).toBe('stdout unavailable');
       expect(exitCalls).toEqual([1]);
       // Emergency logger was constructed exactly once.
       expect(env.createEmergencyLoggerMock.mock.calls.length).toBe(1);

@@ -1,6 +1,5 @@
 import { spawn } from 'node:child_process';
 import { createServer, type Server } from 'node:http';
-import type { AddressInfo } from 'node:net';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 
 const HOST = '127.0.0.1';
@@ -10,16 +9,19 @@ function startStubServer(
   body: unknown,
   captureCalls?: { path: string; method: string }[],
 ): Promise<{ server: Server; port: number }> {
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const server = createServer((req, res) => {
       captureCalls?.push({ path: req.url ?? '', method: req.method ?? '' });
       res.writeHead(status, { 'content-type': 'application/json' });
       res.end(typeof body === 'string' ? body : JSON.stringify(body));
     });
     server.listen(0, HOST, () => {
-      // Safe: listen(0, ...) binds a TCP socket, so address() returns an
-      // AddressInfo (a pipe path string only comes from unix socket binding).
-      const addr = server.address() as AddressInfo;
+      const addr = server.address();
+      // listen(0, HOST) on TCP yields an AddressInfo; reject otherwise.
+      if (!addr || typeof addr === 'string') {
+        reject(new Error('expected AddressInfo from listen(0)'));
+        return;
+      }
       resolve({ server, port: addr.port });
     });
   });

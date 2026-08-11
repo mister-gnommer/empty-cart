@@ -13,6 +13,9 @@ function makeState(
 
 describe('mapHealthStatus mapper', () => {
   describe('phase × discord → HTTP code + status (full table)', () => {
+    // Safe: `as const` keeps the array's literal-typed elements so `phase`
+    // narrows to ProcessPhase's union; without it the array widens to
+    // string[] and the makeState argument would reject `string`.
     for (const phase of ['starting', 'running'] as const) {
       it(`${phase} + connected → 200 healthy`, () => {
         const r = mapHealthStatus(makeState(phase, 'connected'), 1_700_000_005_000);
@@ -30,6 +33,7 @@ describe('mapHealthStatus mapper', () => {
         expect(r.body.status).toBe('degraded');
       });
     }
+    // Safe: same literal-narrowing rationale as the phase loop above.
     for (const discord of ['connected', 'disconnected', 'reconnecting', 'destroyed'] as const) {
       it(`shutting-down + ${discord} → 503 shutting-down (no stale healthy)`, () => {
         const r = mapHealthStatus(makeState('shutting-down', discord), 1_700_000_005_000);

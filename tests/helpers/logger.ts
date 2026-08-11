@@ -24,11 +24,10 @@ export function makeCapturingLogger(): {
       let merged: Record<string, unknown> = { ...bindings };
       for (const a of args) {
         if (a && typeof a === 'object') {
-          merged = { ...merged, ...(a as Record<string, unknown>) };
+          merged = { ...merged, ...a };
         }
       }
-      // `merged` carries only unknown-typed values; level and msg are always strings here.
-      lines.push({ ...merged, level: severity, msg: String(merged.msg ?? '') } as LoggedLine);
+      lines.push({ ...merged, level: severity, msg: String(merged.msg ?? '') });
     }
     return {
       info: (...a: unknown[]) => emit('info', a),

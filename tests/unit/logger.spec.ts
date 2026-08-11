@@ -35,7 +35,7 @@ function makeStreamLogger(level: Config['logLevel'] = 'info') {
         .join('')
         .split('\n')
         .filter(Boolean)
-        .map((l) => JSON.parse(l)) as Record<string, unknown>[],
+        .map((l) => JSON.parse(l)),
   };
 }
 
@@ -81,9 +81,9 @@ describe('logger', () => {
   describe('childFor binds correlationId on every subsequent line', () => {
     it('every line emitted by the child logger carries the binding', () => {
       const { logger, chunks } = makeStreamLogger('info');
-      const child = childFor(logger as never, 'corr-1') as ReturnType<
-        typeof makeStreamLogger
-      >['logger'];
+      // Safe: `logger` is a real pino Logger built above; `as never` only
+      // bridges the nominal pino import expected by childFor's signature.
+      const child = childFor(logger as never, 'corr-1');
       child.info({ msg: 'first' });
       child.warn({ msg: 'second' });
       child.error({ msg: 'third' });
@@ -96,9 +96,8 @@ describe('logger', () => {
 
     it('extra bindings are also merged onto every line', () => {
       const { logger, chunks } = makeStreamLogger('info');
-      const child = childFor(logger as never, 'corr-2', { userId: 'u1' }) as ReturnType<
-        typeof makeStreamLogger
-      >['logger'];
+      // Safe: same pino Logger bridge as the case above.
+      const child = childFor(logger as never, 'corr-2', { userId: 'u1' });
       child.info({ msg: 'event' });
       const line = chunks()[0];
       expect(line.correlationId).toBe('corr-2');
@@ -136,12 +135,15 @@ describe('logger', () => {
     it('createBootstrapLogger returns a usable info logger reading env.LOG_LEVEL', () => {
       const logger = createBootstrapLogger({ LOG_LEVEL: 'warn' });
       expect(typeof logger.info).toBe('function');
-      // introspect level — pino sets @level
+      // Safe: pino's published Logger type omits the runtime `level` field; the
+      // double cast accesses the internal property. `level` is always a string
+      // at runtime (pino sets it from the configured level).
       expect((logger as unknown as { level: string }).level).toBe('warn');
     });
 
     it('createBootstrapLogger clamps an unknown LOG_LEVEL to info', () => {
       const logger = createBootstrapLogger({ LOG_LEVEL: 'verbose' });
+      // Safe: same rationale as above — pino's type omits the runtime `level`.
       expect((logger as unknown as { level: string }).level).toBe('info');
     });
   });
@@ -177,7 +179,7 @@ describe('logger', () => {
       try {
         expect(() => createEmergencyLogger()).toThrowError(/stderr/);
       } finally {
-        Object.defineProperty(process, 'stderr', restore as PropertyDescriptor);
+        if (restore) Object.defineProperty(process, 'stderr', restore);
       }
     });
   });
@@ -220,7 +222,7 @@ describe('logger', () => {
       const corrId = 'corr-redaction-001';
       // Safe: `logger` is a real pino Logger built above; `as never` only
       // bridges the nominal import expected by childFor's signature.
-      const log = childFor(logger as never, corrId) as typeof logger;
+      const log = childFor(logger as never, corrId);
       log.info({
         msg: 'command received',
         userId: 'u-1',

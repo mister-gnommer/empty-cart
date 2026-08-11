@@ -24,10 +24,8 @@ function makeStubbedClient(): Client {
       GatewayIntentBits.MessageContent,
     ],
   });
-  // Safe: stubs replace network I/O with no-ops; the method shapes match the
-  // real Client.login/destroy signatures so the adapter calls them unaltered.
-  client.login = (async () => 'stub-token') as typeof client.login;
-  client.destroy = (async () => undefined) as typeof client.destroy;
+  client.login = async () => 'stub-token';
+  client.destroy = async () => undefined;
   return client;
 }
 

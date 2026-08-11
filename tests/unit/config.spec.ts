@@ -33,9 +33,13 @@ function expectError(
   try {
     loadConfig(env);
   } catch (e) {
+    // Safe: catch binding is `unknown` under strict; loadConfig only ever
+    // throws ConfigError, so the cast narrows back to the known concrete type.
     caught = e as ConfigError;
   }
   expect(caught, `expected ConfigError for ${envField}/${reason}`).toBeInstanceOf(ConfigError);
+  // Safe: the toBeInstanceOf assertion above throws on failure, so reaching
+  // here guarantees caught is non-null; tsc can't see through the matcher.
   expect(caught!.envField).toBe(envField);
   expect(caught!.reason).toBe(reason);
   // Message must NEVER contain any value — it carries only the field name
@@ -50,7 +54,7 @@ describe('loadConfig', () => {
       const cfg = loadConfig({ DISCORD_TOKEN: DEFAULT_CONFIG.discordToken });
       expect(cfg).toEqual(DEFAULT_CONFIG);
       expect(Object.isFrozen(cfg)).toBe(true);
-      expect(Object.isFrozen(Object.getOwnPropertyDescriptor as unknown)).toBe(false);
+      expect(Object.isFrozen(Object.getOwnPropertyDescriptor)).toBe(false);
     });
 
     it('honours all env overrides', () => {
@@ -62,7 +66,7 @@ describe('loadConfig', () => {
         SHUTDOWN_TIMEOUT_MS: '12000',
         HEALTH_HOST: '10.0.0.1',
         HEALTH_PORT: '9000',
-      } as const;
+      };
 
       const cfg = loadConfig({ ...VALID, ...envOverrides });
       expect(cfg).toMatchObject({

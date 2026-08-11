@@ -2,8 +2,8 @@ import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
-import { makeCapturingLogger } from '../helpers/logger';
 import type { BotState, Config } from '../../src/shared/types';
+import { makeCapturingLogger } from '../helpers/logger';
 
 const baseConfig: Config = {
   discordToken: 'SECRET-TOKEN-VALUE',
@@ -48,6 +48,9 @@ function buildFakeMessage(opts: {
     });
   const channel = {
     id: opts.channelId ?? 'chan-1',
+    // Safe: vi.fn's generic parameter inferred from sendImpl does not match
+    // ReturnType<typeof vi.fn> directly (variance), so the double cast via
+    // `unknown` is required; the runtime value is unchanged.
     send: vi.fn(sendImpl) as unknown as ReturnType<typeof vi.fn>,
   };
   return {
@@ -60,6 +63,8 @@ function buildFakeMessage(opts: {
       guild: opts.guildId == null ? null : { id: opts.guildId },
       channelId: opts.channelId ?? 'chan-1',
       channel,
+      // Safe: the literal is a structural stand-in for discord.js Message;
+      // FakeMessage's optional fields accept the partial shape built here.
     } as FakeMessage,
     channelStub: channel,
   };
@@ -90,6 +95,8 @@ function makeAdapter(
 ) {
   return createDiscordAdapter({
     config: opts.config ?? baseConfig,
+    // Safe: the capturing logger satisfies pino's Logger call surface
+    // structurally; `as never` only bridges the nominal pino import.
     logger: cap.logger as never,
     botState,
     echo: opts.echo ?? handleEchoCommand,
@@ -112,6 +119,10 @@ describe('discord adapter contract', () => {
   let originalProcessExit: typeof process.exit;
   beforeEach(() => {
     originalProcessExit = process.exit;
+    // Safe: the inner `as never` lets the throwing thunk satisfy vitest's
+    // `vi.fn` impl-typing; the outer `as never` bridges the resulting mock to
+    // `process.exit` (declared `(...args) => never`). Runtime behavior is a
+    // no-op stub that throws — captured by afterEach's restore.
     process.exit = vi.fn((() => {
       throw new Error('process.exit called');
     }) as never) as never;
@@ -142,12 +153,16 @@ describe('discord adapter contract', () => {
       client.emit(Events.ShardDisconnect, { code: 1006 }, 0);
       const discLine = cap.lines.find((l) => l.msg === 'discord shard disconnected');
       expect(discLine, 'expected shard-disconnect warn line').toBeDefined();
+      // Safe: the expect(...).toBeDefined() above throws on failure, so
+      // reaching here guarantees discLine is non-null.
       expect(String(discLine!.correlationId)).toMatch(/.+/);
       expect(botState.discord).toBe('reconnecting');
 
       client.emit(Events.ShardResume, undefined, 0);
       const resumeLine = cap.lines.find((l) => l.msg === 'discord reconnected');
       expect(resumeLine, 'expected reconnect info line').toBeDefined();
+      // Safe: discLine was asserted defined above; resumeLine was asserted
+      // defined on the previous line.
       expect(resumeLine!.correlationId).toBe(discLine!.correlationId);
       expect(botState.discord).toBe('connected');
 
@@ -165,6 +180,10 @@ describe('discord adapter contract', () => {
       client.emit(Events.ShardReady, 0);
       const readyLine = cap.lines.find((l) => l.msg === 'discord reconnected');
       expect(readyLine).toBeDefined();
+      // Safe: readyLine was asserted defined above; discLine is produced by
+      // the ShardDisconnect handler before ShardReady fires — the adapter
+      // writes the disconnect warn line synchronously in the emit, so it
+      // exists by the time we reach this assertion.
       expect(readyLine!.correlationId).toBe(discLine!.correlationId);
 
       await adapter.stop();
@@ -182,7 +201,9 @@ describe('discord adapter contract', () => {
       client.emit(Events.ShardDisconnect, { code: 1000 }, 0);
       const second = cap.lines.slice(first + 1).find((l) => l.msg === 'discord shard disconnected');
       expect(second).toBeDefined();
-      expect(second!.correlationId).not.toBe(cap.lines[first]!.correlationId);
+      // Safe: second was asserted defined above; cap.lines[first] is
+      // non-undefined under this tsconfig (no noUncheckedIndexedAccess).
+      expect(second!.correlationId).not.toBe(cap.lines[first].correlationId);
 
       await adapter.stop();
     });
@@ -199,7 +220,9 @@ describe('discord adapter contract', () => {
       await dispatchMessage(client, fake.raw);
 
       expect(fake.channelStub.send).toHaveBeenCalledTimes(1);
-      const payload = fake.channelStub.send.mock.calls[0]![0] as {
+      // Safe: send was asserted called exactly once above; the runtime payload
+      // matches the documented send() arg shape, which the cast exposes.
+      const payload = fake.channelStub.send.mock.calls[0][0] as {
         content: string;
         allowedMentions: unknown;
       };
@@ -220,7 +243,10 @@ describe('discord adapter contract', () => {
       await dispatchMessage(client, fake.raw);
 
       expect(fake.channelStub.send).toHaveBeenCalledTimes(1);
-      const payload = fake.channelStub.send.mock.calls[0]![0] as {
+      // Safe: send was asserted called exactly once above; the cast exposes
+      // the documented send() arg shape (allowedMentions asserted, content
+      // typed loosely here because the empty-args reply is the usage hint).
+      const payload = fake.channelStub.send.mock.calls[0][0] as {
         content: unknown;
         allowedMentions: unknown;
       };
@@ -241,7 +267,10 @@ describe('discord adapter contract', () => {
       const fake = buildFakeMessage({ content: `!echo ${'a'.repeat(1901)}` });
       await dispatchMessage(client, fake.raw);
 
-      const payload = fake.channelStub.send.mock.calls[0]![0] as {
+      // Safe: the adapter sends exactly one reply per command dispatch (the
+      // too-long guard returns a single send before the handler resolves);
+      // the cast exposes the documented send() arg shape.
+      const payload = fake.channelStub.send.mock.calls[0][0] as {
         content: string;
         allowedMentions: unknown;
       };
@@ -270,12 +299,15 @@ describe('discord adapter contract', () => {
       await dispatchMessage(client, fake.raw);
 
       expect(fake.channelStub.send).toHaveBeenCalledTimes(1);
-      const payload = fake.channelStub.send.mock.calls[0]![0] as {
+      // Safe: send was asserted called exactly once above; the cast exposes
+      // the documented send() arg shape (content only here).
+      const payload = fake.channelStub.send.mock.calls[0][0] as {
         content: string;
       };
       expect(payload.content).toBe('An internal error occurred while processing your command.');
       const errLine = cap.lines.find((l) => l.msg === 'command handler threw');
       expect(errLine).toBeDefined();
+      // Safe: errLine was asserted defined above.
       expect(String(errLine!.errorMessage)).toContain('boom from echo core');
       // Reply must NOT contain the exception text.
       expect(payload.content).not.toContain('boom');
@@ -301,6 +333,7 @@ describe('discord adapter contract', () => {
       expect(send.mock.calls.length).toBeGreaterThanOrEqual(1);
       const failLine = cap.lines.find((l) => l.msg === 'reply failed after retries');
       expect(failLine).toBeDefined();
+      // Safe: failLine was asserted defined above.
       expect(Number(failLine!.attempts)).toBeLessThanOrEqual(3);
       expect(botState.discord).toBe('disconnected');
       await adapter.stop();
@@ -321,6 +354,7 @@ describe('discord adapter contract', () => {
       expect(send.mock.calls.length).toBe(1);
       const failLine = cap.lines.find((l) => l.msg === 'reply failed after retries');
       expect(failLine).toBeDefined();
+      // Safe: failLine was asserted defined above.
       expect(Number(failLine!.attempts)).toBe(1);
       await adapter.stop();
     });
@@ -336,7 +370,7 @@ describe('discord adapter contract', () => {
       const send = vi.fn(
         () =>
           new Promise((_resolve, reject) => {
-            rejects.push(reject as () => void);
+            rejects.push(reject);
           }),
       );
       const fake = buildFakeMessage({ content: '!echo x', sendImpl: send });
@@ -369,6 +403,10 @@ describe('discord adapter contract', () => {
       expect(client.listenerCount(Events.MessageCreate)).toBe(1);
       await adapter.stop();
       expect(client.listenerCount(Events.MessageCreate)).toBe(0);
+      // Safe: client.destroy was stubbed with a noop `() => undefined` earlier
+      // in makeStubbedClient, so it's not a real discord.js method at runtime
+      // here — but its declared type is discord.js's `() => Promise<void>`,
+      // which hides `.mock`; the cast recovers the vitest Mock surface.
       expect((client.destroy as ReturnType<typeof vi.fn>).mock.calls.length).toBe(1);
       expect(botState.discord).toBe('destroyed');
       expect(cap.lines.some((l) => l.msg === 'discord disconnected')).toBe(true);
@@ -406,9 +444,11 @@ describe('discord adapter contract', () => {
       }
       const rcv = cap.lines.find((l) => l.msg === 'command received');
       expect(rcv).toBeDefined();
+      // Safe: rcv was asserted defined above.
       expect(Number(rcv!.argsLength)).toBe(secretText.length);
       const handled = cap.lines.find((l) => l.msg === 'command handled');
       expect(handled).toBeDefined();
+      // Safe: handled was asserted defined above.
       expect(handled!.status).toBe('echoed');
       expect(Number(handled!.replyLength)).toBe(secretText.length);
       await adapter.stop();
