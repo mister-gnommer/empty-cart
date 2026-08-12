@@ -147,7 +147,7 @@ async function loadAppWithMocks(opts: {
     createDiscordAdapter: createDiscordAdapterMock,
   }));
 
-  const { runApp } = await import('../../src/lifecycle/run-app');
+  const { runApp } = await import('../../src/lifecycle/run-app.js');
   return {
     cap,
     loadConfigMock,
@@ -162,7 +162,7 @@ async function loadAppWithMocks(opts: {
   };
 }
 
-async function dispatchSignal(signal: SigName): Promise<void> {
+async function dispatchSignal(signal: NodeJS.Signals): Promise<void> {
   process.emit(signal, signal);
   await new Promise((r) => setImmediate(r));
 }
@@ -182,7 +182,7 @@ const unhandledSwallow = (): void => {
 };
 process.on('unhandledRejection', unhandledSwallow);
 
-const originalListeners: Record<SigName, NodeJS.Listener[]> = {
+const originalListeners: Record<SigName, Array<(signal: NodeJS.Signals) => void>> = {
   [SIGTERM]: [...process.listeners(SIGTERM)],
   [SIGINT]: [...process.listeners(SIGINT)],
 };
@@ -208,7 +208,7 @@ afterEach(() => {
   // cannot leak into subsequent tests and double-fire `process.exit`.
   for (const sig of SIG_LIST) {
     const before = originalListeners[sig];
-    const current = process.listeners(sig);
+    const current = process.listeners(sig as NodeJS.Signals);
     for (const l of current) {
       if (!before.includes(l)) {
         process.removeListener(sig, l);
