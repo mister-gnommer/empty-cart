@@ -1,9 +1,9 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js';
 import { describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import type { BotState, Config } from '../../src/shared/types';
 import { makeCapturingLogger } from '../helpers/logger';
+import { emitMessage, makeStubbedClient } from '../helpers/stubbed-client';
 
 const config: Config = {
   discordToken: 'tok',
@@ -15,19 +15,6 @@ const config: Config = {
   healthHost: '127.0.0.1',
   healthPort: 8081,
 };
-
-function makeStubbedClient(): Client {
-  const client = new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent,
-    ],
-  });
-  client.login = async () => 'stub-token';
-  client.destroy = async () => undefined;
-  return client;
-}
 
 describe('integration: !echo round trip', () => {
   it('hand-driven Events.MessageCreate produces the echoed reply on a stubbed channel.send with correlationId on every log line of the handler call', async () => {
@@ -58,8 +45,9 @@ describe('integration: !echo round trip', () => {
         channel: { id: 'channel-9', send },
       };
 
-      // The stub message is a partial stand-in for the real Message object.
-      client.emit(Events.MessageCreate, message as never);
+      // The stub message is a partial stand-in for the real Message object;
+      // emitMessage bridges it to the discord.js Message tuple shape.
+      emitMessage(client, message);
       // Wait for the async handler to send the reply and emit both log lines.
       await vi.waitFor(() => {
         expect(send).toHaveBeenCalledTimes(1);

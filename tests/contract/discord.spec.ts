@@ -1,9 +1,16 @@
-import { Client, Events, GatewayIntentBits } from 'discord.js';
+import { type Client, Events } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import type { BotState, Config } from '../../src/shared/types';
 import { makeCapturingLogger } from '../helpers/logger';
+import {
+  emitMessage,
+  emitShardDisconnect,
+  emitShardReady,
+  emitShardResume,
+  makeStubbedClient,
+} from '../helpers/stubbed-client';
 
 const baseConfig: Config = {
   discordToken: 'SECRET-TOKEN-VALUE',
@@ -70,24 +77,10 @@ function buildFakeMessage(opts: {
   };
 }
 
-function makeStubbedClient(): Client {
-  const client = new Client({
-    intents: [
-      GatewayIntentBits.Guilds,
-      GatewayIntentBits.GuildMessages,
-      GatewayIntentBits.MessageContent,
-    ],
-  });
-  // Do not perform a real WebSocket login or destroy.
-  client.login = vi.fn(async () => 'fake-token');
-  client.destroy = vi.fn(async () => undefined);
-  return client;
-}
-
 function makeAdapter(
   cap: ReturnType<typeof makeCapturingLogger>,
   botState: BotState,
-  client: Client,
+  client: Client<true>,
   opts: {
     echo?: typeof handleEchoCommand;
     config?: Config;
@@ -104,8 +97,8 @@ function makeAdapter(
   });
 }
 
-async function dispatchMessage(client: Client, message: FakeMessage): Promise<void> {
-  client.emit(Events.MessageCreate, message);
+async function dispatchMessage(client: Client<true>, message: FakeMessage): Promise<void> {
+  emitMessage(client, message);
   // Flush enough microtasks for the async handler body to settle. The retry
   // loop's backoff uses real setTimeout; allow up to 500ms of real time for
   // up to three retries (each backoff is 30*attempt ms, total ~90-180ms).
@@ -150,7 +143,7 @@ describe('discord adapter contract', () => {
       const client = makeStubbedClient();
       const adapter = makeAdapter(cap, botState, client);
 
-      client.emit(Events.ShardDisconnect, { code: 1006 }, 0);
+      emitShardDisconnect(client, 1006, 0);
       const discLine = cap.lines.find((l) => l.msg === 'discord shard disconnected');
       expect(discLine, 'expected shard-disconnect warn line').toBeDefined();
       // Safe: the expect(...).toBeDefined() above throws on failure, so
@@ -158,7 +151,7 @@ describe('discord adapter contract', () => {
       expect(String(discLine!.correlationId)).toMatch(/.+/);
       expect(botState.discord).toBe('reconnecting');
 
-      client.emit(Events.ShardResume, undefined, 0);
+      emitShardResume(client, 0);
       const resumeLine = cap.lines.find((l) => l.msg === 'discord reconnected');
       expect(resumeLine, 'expected reconnect info line').toBeDefined();
       // Safe: discLine was asserted defined above; resumeLine was asserted
@@ -175,9 +168,9 @@ describe('discord adapter contract', () => {
       const client = makeStubbedClient();
       const adapter = makeAdapter(cap, botState, client);
 
-      client.emit(Events.ShardDisconnect, { code: 1011 }, 0);
+      emitShardDisconnect(client, 1011, 0);
       const discLine = cap.lines.find((l) => l.msg === 'discord shard disconnected');
-      client.emit(Events.ShardReady, 0);
+      emitShardReady(client, 0);
       const readyLine = cap.lines.find((l) => l.msg === 'discord reconnected');
       expect(readyLine).toBeDefined();
       // Safe: readyLine was asserted defined above; discLine is produced by
@@ -195,10 +188,10 @@ describe('discord adapter contract', () => {
       const client = makeStubbedClient();
       const adapter = makeAdapter(cap, botState, client);
 
-      client.emit(Events.ShardDisconnect, { code: 1006 }, 0);
+      emitShardDisconnect(client, 1006, 0);
       const first = cap.lines.findIndex((l) => l.msg === 'discord shard disconnected');
-      client.emit(Events.ShardResume, undefined, 0);
-      client.emit(Events.ShardDisconnect, { code: 1000 }, 0);
+      emitShardResume(client, 0);
+      emitShardDisconnect(client, 1000, 0);
       const second = cap.lines.slice(first + 1).find((l) => l.msg === 'discord shard disconnected');
       expect(second).toBeDefined();
       // Safe: second was asserted defined above; cap.lines[first] is
@@ -421,7 +414,7 @@ describe('discord adapter contract', () => {
       await adapter.stop();
       expect(client.listenerCount(Events.MessageCreate)).toBe(0);
       const fake = buildFakeMessage({ content: '!echo post-stop' });
-      client.emit(Events.MessageCreate, fake.raw);
+      emitMessage(client, fake.raw);
       await new Promise((r) => setImmediate(r));
       expect(fake.channelStub.send).not.toHaveBeenCalled();
     });
