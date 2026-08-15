@@ -66,13 +66,11 @@ async function loadAppWithMocks(opts: {
   }
 
   // Mock config loader.
-  const loadConfigMock = opts.loadConfigThrowsEnvField
+  const throwingEnvField = opts.loadConfigThrowsEnvField;
+  const loadConfigMock = throwingEnvField
     ? vi.fn((): Config => {
         throw new ConfigError({
-          // Safe: the outer ternary already checked this is defined; the
-          // closure sees `opts.loadConfigThrowsEnvField` as `string | undefined`
-          // (TS doesn't narrow across the arrow), so the `!` recovers it.
-          envField: opts.loadConfigThrowsEnvField!,
+          envField: throwingEnvField,
           reason: opts.loadConfigThrowsReason ?? 'missing',
         });
       })

@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { type Client, Events } from 'discord.js';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
@@ -55,10 +56,7 @@ function buildFakeMessage(opts: {
     });
   const channel = {
     id: opts.channelId ?? 'chan-1',
-    // Safe: vi.fn's generic parameter inferred from sendImpl does not match
-    // ReturnType<typeof vi.fn> directly (variance), so the double cast via
-    // `unknown` is required; the runtime value is unchanged.
-    send: vi.fn(sendImpl) as unknown as ReturnType<typeof vi.fn>,
+    send: vi.fn(sendImpl),
   };
   return {
     raw: {
@@ -99,26 +97,18 @@ function makeAdapter(
 
 async function dispatchMessage(client: Client<true>, message: FakeMessage): Promise<void> {
   emitMessage(client, message);
-  // Flush enough microtasks for the async handler body to settle. The retry
-  // loop's backoff uses real setTimeout; allow up to 500ms of real time for
-  // up to three retries (each backoff is 30*attempt ms, total ~90-180ms).
-  for (let i = 0; i < 5; i++) {
-    await new Promise((r) => setImmediate(r));
-  }
-  await new Promise((r) => setTimeout(r, 500));
+  // Flush the async message handler so its post-send continuation (logging)
+  // settles before the caller asserts.
+  await new Promise((r) => setImmediate(r));
 }
 
 describe('discord adapter contract', () => {
   let originalProcessExit: typeof process.exit;
   beforeEach(() => {
     originalProcessExit = process.exit;
-    // Safe: the inner `as never` lets the throwing thunk satisfy vitest's
-    // `vi.fn` impl-typing; the outer `as never` bridges the resulting mock to
-    // `process.exit` (declared `(...args) => never`). Runtime behavior is a
-    // no-op stub that throws — captured by afterEach's restore.
-    process.exit = vi.fn((() => {
+    process.exit = () => {
       throw new Error('process.exit called');
-    }) as never) as never;
+    };
   });
   afterEach(() => {
     process.exit = originalProcessExit;
@@ -145,18 +135,14 @@ describe('discord adapter contract', () => {
 
       emitShardDisconnect(client, 1006, 0);
       const discLine = cap.lines.find((l) => l.msg === 'discord shard disconnected');
-      expect(discLine, 'expected shard-disconnect warn line').toBeDefined();
-      // Safe: the expect(...).toBeDefined() above throws on failure, so
-      // reaching here guarantees discLine is non-null.
-      expect(String(discLine!.correlationId)).toMatch(/.+/);
+      assert.ok(discLine, 'expected shard-disconnect warn line');
+      expect(String(discLine.correlationId)).toMatch(/.+/);
       expect(botState.discord).toBe('reconnecting');
 
       emitShardResume(client, 0);
       const resumeLine = cap.lines.find((l) => l.msg === 'discord reconnected');
-      expect(resumeLine, 'expected reconnect info line').toBeDefined();
-      // Safe: discLine was asserted defined above; resumeLine was asserted
-      // defined on the previous line.
-      expect(resumeLine!.correlationId).toBe(discLine!.correlationId);
+      assert.ok(resumeLine, 'expected reconnect info line');
+      expect(resumeLine.correlationId).toBe(discLine.correlationId);
       expect(botState.discord).toBe('connected');
 
       await adapter.stop();
@@ -172,12 +158,9 @@ describe('discord adapter contract', () => {
       const discLine = cap.lines.find((l) => l.msg === 'discord shard disconnected');
       emitShardReady(client, 0);
       const readyLine = cap.lines.find((l) => l.msg === 'discord reconnected');
-      expect(readyLine).toBeDefined();
-      // Safe: readyLine was asserted defined above; discLine is produced by
-      // the ShardDisconnect handler before ShardReady fires — the adapter
-      // writes the disconnect warn line synchronously in the emit, so it
-      // exists by the time we reach this assertion.
-      expect(readyLine!.correlationId).toBe(discLine!.correlationId);
+      assert.ok(discLine);
+      assert.ok(readyLine);
+      expect(readyLine.correlationId).toBe(discLine.correlationId);
 
       await adapter.stop();
     });
@@ -193,10 +176,8 @@ describe('discord adapter contract', () => {
       emitShardResume(client, 0);
       emitShardDisconnect(client, 1000, 0);
       const second = cap.lines.slice(first + 1).find((l) => l.msg === 'discord shard disconnected');
-      expect(second).toBeDefined();
-      // Safe: second was asserted defined above; cap.lines[first] is
-      // non-undefined under this tsconfig (no noUncheckedIndexedAccess).
-      expect(second!.correlationId).not.toBe(cap.lines[first].correlationId);
+      assert.ok(second);
+      expect(second.correlationId).not.toBe(cap.lines[first].correlationId);
 
       await adapter.stop();
     });
@@ -299,9 +280,8 @@ describe('discord adapter contract', () => {
       };
       expect(payload.content).toBe('An internal error occurred while processing your command.');
       const errLine = cap.lines.find((l) => l.msg === 'command handler threw');
-      expect(errLine).toBeDefined();
-      // Safe: errLine was asserted defined above.
-      expect(String(errLine!.errorMessage)).toContain('boom from echo core');
+      assert.ok(errLine);
+      expect(String(errLine.errorMessage)).toContain('boom from echo core');
       // Reply must NOT contain the exception text.
       expect(payload.content).not.toContain('boom');
       await adapter.stop();
@@ -321,13 +301,15 @@ describe('discord adapter contract', () => {
       });
       const fake = buildFakeMessage({ content: '!echo x', sendImpl: send });
       await dispatchMessage(client, fake.raw);
+      // The retry loop backs off with real setTimeout (30*attempt ms); give it
+      // wall-clock time to run all three attempts before asserting.
+      await new Promise((r) => setTimeout(r, 200));
 
       expect(send.mock.calls.length).toBeLessThanOrEqual(3);
       expect(send.mock.calls.length).toBeGreaterThanOrEqual(1);
       const failLine = cap.lines.find((l) => l.msg === 'reply failed after retries');
-      expect(failLine).toBeDefined();
-      // Safe: failLine was asserted defined above.
-      expect(Number(failLine!.attempts)).toBeLessThanOrEqual(3);
+      assert.ok(failLine);
+      expect(Number(failLine.attempts)).toBeLessThanOrEqual(3);
       expect(botState.discord).toBe('disconnected');
       await adapter.stop();
     });
@@ -346,9 +328,8 @@ describe('discord adapter contract', () => {
       await dispatchMessage(client, fake.raw);
       expect(send.mock.calls.length).toBe(1);
       const failLine = cap.lines.find((l) => l.msg === 'reply failed after retries');
-      expect(failLine).toBeDefined();
-      // Safe: failLine was asserted defined above.
-      expect(Number(failLine!.attempts)).toBe(1);
+      assert.ok(failLine);
+      expect(Number(failLine.attempts)).toBe(1);
       await adapter.stop();
     });
 
@@ -436,14 +417,12 @@ describe('discord adapter contract', () => {
         expect(json, `line leaked content: ${json}`).not.toContain(secretText);
       }
       const rcv = cap.lines.find((l) => l.msg === 'command received');
-      expect(rcv).toBeDefined();
-      // Safe: rcv was asserted defined above.
-      expect(Number(rcv!.argsLength)).toBe(secretText.length);
+      assert.ok(rcv);
+      expect(Number(rcv.argsLength)).toBe(secretText.length);
       const handled = cap.lines.find((l) => l.msg === 'command handled');
-      expect(handled).toBeDefined();
-      // Safe: handled was asserted defined above.
-      expect(handled!.status).toBe('echoed');
-      expect(Number(handled!.replyLength)).toBe(secretText.length);
+      assert.ok(handled);
+      expect(handled.status).toBe('echoed');
+      expect(Number(handled.replyLength)).toBe(secretText.length);
       await adapter.stop();
     });
   });
