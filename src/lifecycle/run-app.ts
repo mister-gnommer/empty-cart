@@ -74,9 +74,12 @@ export async function runApp(): Promise<void> {
   };
 
   // §2 signal handling scaffolding (installed before any awaited long-running
-  // start step so early SIGTERM is handled).
-  let healthStopPromise: Promise<void> | null = null;
-  let adapterStopPromise: Promise<void> | null = null;
+  // start step so early SIGTERM is handled). Children register here as they
+  // construct; doShutdown stops them. stop() is NEVER invoked during startup —
+  // stopping a child at construction time would tear down the health endpoint
+  // and the message routing before the bot ever serves a request.
+  let healthServer: HealthServer | null = null;
+  let adapter: DiscordAdapter | null = null;
 
   // runApp stays pending until shutdown completes so a thrown `process.exit`
   // from the (detached) shutdown chain propagates as a rejection to the
@@ -100,8 +103,8 @@ export async function runApp(): Promise<void> {
   async function doShutdown(): Promise<void> {
     botState.phase = 'shutting-down';
     const stops: Promise<unknown>[] = [
-      adapterStopPromise ?? Promise.resolve(),
-      healthStopPromise ?? Promise.resolve(),
+      adapter ? adapter.stop() : Promise.resolve(),
+      healthServer ? healthServer.stop() : Promise.resolve(),
     ];
     const budget = config.shutdownTimeoutMs;
     const winner = await Promise.race([
@@ -143,7 +146,6 @@ export async function runApp(): Promise<void> {
   process.on('SIGINT', () => requestShutdown('SIGINT'));
 
   // §1.4 — start health server (post-config; phase stays `starting`).
-  let healthServer: HealthServer;
   try {
     healthServer = startHealthServer({
       config: { healthHost: config.healthHost, healthPort: config.healthPort },
@@ -156,12 +158,8 @@ export async function runApp(): Promise<void> {
     process.exit(1);
     return;
   }
-  healthStopPromise = (async () => {
-    await healthServer.stop();
-  })();
 
   // §1.5 — discord adapter (only importer of discord.js)
-  let adapter: DiscordAdapter;
   try {
     adapter = createDiscordAdapter({
       config,
@@ -175,9 +173,6 @@ export async function runApp(): Promise<void> {
     process.exit(1);
     return;
   }
-  adapterStopPromise = (async () => {
-    await adapter.stop();
-  })();
 
   try {
     await adapter.start();
@@ -187,6 +182,11 @@ export async function runApp(): Promise<void> {
     process.exit(1);
     return;
   }
+
+  // client.login() resolves once the gateway is ready, so the process phase
+  // flips to running here — before the readiness announcement. Until this
+  // point the health endpoint reports phase "starting".
+  botState.phase = 'running';
 
   // §1.6 — bot started (no secrets)
   log.info({
