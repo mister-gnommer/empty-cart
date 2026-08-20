@@ -38,7 +38,17 @@ export type UserCommand = {
 };
 
 export type EchoResult =
-  | { status: 'echoed'; reply: string }
+  | {
+      status: 'echoed';
+      reply: string;
+      /**
+       * Contract signal to the transport: the reply MUST be sent with mention
+       * notifications neutralized (e.g. Discord's allowedMentions empty-parse).
+       * It is a directive, not an audit — the echo core never inspects token
+       * strings; the transport adapter owns the actual neutralization.
+       */
+      transportShouldNeutralizeMentions: true;
+    }
   | { status: 'too-long'; reply: string }
   | { status: 'usage-hint'; reply: string };
 

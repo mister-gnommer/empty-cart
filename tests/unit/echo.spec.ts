@@ -42,6 +42,7 @@ describe('handleEchoCommand', () => {
     expect(result).toEqual({
       status: 'echoed',
       reply: text,
+      transportShouldNeutralizeMentions: true,
     });
   });
 
@@ -51,6 +52,7 @@ describe('handleEchoCommand', () => {
     expect(result).toEqual({
       status: 'echoed',
       reply: text,
+      transportShouldNeutralizeMentions: true,
     });
   });
 
@@ -73,12 +75,13 @@ describe('handleEchoCommand', () => {
   });
 
   it.each(['<@123>', '@everyone', '<@&9>', '@here', '@user', '**bold**', '||spoiler||', '>quote'])(
-    'echoes mention/markdown payload %s verbatim',
+    'echoes mention/markdown payload %s verbatim with the mention-neutralization directive',
     (payload) => {
       const result = handleEchoCommand({ args: payload }, baseConfig);
       expect(result).toEqual({
         status: 'echoed',
         reply: payload,
+        transportShouldNeutralizeMentions: true,
       });
     },
   );
@@ -91,10 +94,12 @@ describe('handleEchoCommand', () => {
     expect(first).toEqual({
       status: 'echoed',
       reply: 'first payload',
+      transportShouldNeutralizeMentions: true,
     });
     expect(second).toEqual({
       status: 'echoed',
       reply: 'second payload',
+      transportShouldNeutralizeMentions: true,
     });
   });
 });
