@@ -56,7 +56,7 @@ Expected: all unit + contract + integration suites green. In particular these ex
 
 > **SC-001 / SC-003 / SC-002 timing/statistical bounds are NOT asserted by the automated suites.** The contracts pin SC-001's 2 s latency to the discord adapter boundary (`contracts/discord.md` §3), SC-003's 5 s shutdown budget to the lifecycle §3 race, and SC-004's 1 s response to the health mapper; the automated tests assert *correctness* and *single-shot* budget compliance, not statistical confidence. The 2 s echo latency under load, the 95 %-within-5 s shutdown trials, and the 7-day unattended uptime (SC-002) are inherently **manual VPS soak** validations — performed via the "Live-gateway smoke" step below and a multi-day production observation. Documented here so reviewers don't expect an automated suite to claim SC-002.
 
-SC-006 (zero secrets in logs) is mechanically enforced by the logger's `redact.paths` — see `tests/integration/logger.redaction.*` and run the post-run scan in the live-gateway step below.
+SC-006 (zero secrets in logs) is mechanically enforced by the logger's `redact.paths` — see `tests/integration/logger-redaction.*` and run the post-run scan in the live-gateway step below.
 
 ## Live-gateway smoke (real Discord, manual) — the "Validate on VPS" step
 

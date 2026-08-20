@@ -117,7 +117,7 @@
 
 **Purpose**: End-to-end validation that ties all stories together.
 
-- [X] T027 [P] Add `tests/integration/logger.redaction.spec.ts` end-to-end SC-006 path: log a representative startup → echo-handle → shutdown event sequence through the real logger to a captured stdout sink and assert no log line contains the literal `DISCORD_TOKEN` value
+- [X] T027 [P] Add `tests/integration/logger-redaction.spec.ts` end-to-end SC-006 path: log a representative startup → echo-handle → shutdown event sequence through the real logger to a captured stdout sink and assert no log line contains the literal `DISCORD_TOKEN` value
 - [X] T028 [P] Add a `scripts/secret-scan.sh` (or npm script) that greps a captured log file for the literal `DISCORD_TOKEN` env value and exits non-zero on match (the `quickstart.md` "Live-gateway smoke" step 6 SC-006 helper)
 - [X] T029 Run `npm run lint` and fix any violations; confirm final zero-warning state — the `no-restricted-paths` zones (T004) are CI-enforced via T031
 - [ ] T030 Walk `quickstart.md` end-to-end: `npm ci && npm run build && set -a; source .env; set +a && node dist/index.js`; verify automated-validation matrix (all unit/contract/integration suites green), then the live-gateway smoke steps 1–6 against a test server; record any deviations as follow-up tasks
@@ -220,3 +220,12 @@ See "Parallel Example: All Three Stories at Once" above. The only cross-story or
 - `discord.js` importation is machine-enforced to `src/discord/` only via the eslint rule from T004 (research R10)
 - No `logger.flush()` is awaited anywhere — SonicBoom's `process.on('exit')` handler + `fatal`'s auto-sync covers it (see `contracts/logger.md` §5)
 - Stop at any checkpoint to validate a story independently before proceeding
+
+---
+
+## Phase 7: Convergence
+
+- [X] T033 Emit `transportShouldNeutralizeMentions: true` on every `echoed` result so the `EchoResult` type and echo core match the echo contract's required signal field (mention neutralization is already enforced unconditionally in the adapter via `allowedMentions`, but the contract/type drifted) per FR-013 (partial)
+- [X] T034 Transition `BotState.phase` from `starting` to `running` once Discord connects (after `adapter.start()` resolves on `ClientReady`), so `/healthz` reports `phase:"running"` during normal operation instead of the stale `"starting"` value per the lifecycle contract's startup sequence (missing)
+- [X] T035 Reconcile the lint tooling with the plan's ESLint decision: either adopt ESLint `no-restricted-paths` as specified or document the Biome `noRestrictedImports` substitution, and fix the stale source comments in `src/config/schema.ts` and `src/discord/adapter.ts` that reference a non-existent `eslint.config.mjs` per plan lint decision (contradicts)
+- [X] T036 Add the SC-006 end-to-end redaction test at its specified location `tests/integration/logger-redaction.spec.ts` (renamed from `logger.redaction.spec.ts` per the repo file-naming rule), consolidating the coverage that had drifted into `tests/unit/logger.spec.ts` per SC-006 (partial)
