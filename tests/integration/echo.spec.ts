@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
@@ -67,10 +68,8 @@ describe('integration: !echo round trip', () => {
       const rcv = cap.lines.find((l) => l.msg === 'command received');
       const handled = cap.lines.find((l) => l.msg === 'command handled');
       expect(rcv).toBeDefined();
-      expect(handled).toBeDefined();
-      // Safe: handled was asserted defined on the previous line; vitest
-      // throws synchronously on failure, so `handled!` is non-null here.
-      expect(handled!.status).toBe('echoed');
+      assert.ok(handled);
+      expect(handled.status).toBe('echoed');
       const corrId = rcv?.correlationId;
       expect(corrId).toBeTypeOf('string');
       for (const line of cap.lines) {

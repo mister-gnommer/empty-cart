@@ -234,7 +234,7 @@ describe('lifecycle contract', () => {
 
     it('on a post-config child throw (health bind failure) → exactly one fatal naming the subsystem + exit 1', async () => {
       const env = await loadAppWithMocks({
-        startHealthThrows: Object.assign(new Error('EADDRINUSE'), { code: 'EADDRINUSE' }),
+        startHealthThrows: new Error('EADDRINUSE'),
       });
       await expect(env.runApp()).rejects.toThrow(/process\.exit/);
       const fatalLines = env.cap.lines.filter((l) => l.level === 'fatal');

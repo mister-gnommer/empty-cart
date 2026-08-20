@@ -1,3 +1,4 @@
+import assert from 'node:assert/strict';
 import { describe, expect, it } from 'vitest';
 import { ConfigError, loadConfig } from '../../src/config/load-config';
 import type { Config } from '../../src/shared/types';
@@ -33,19 +34,17 @@ function expectError(
   try {
     loadConfig(env);
   } catch (e) {
-    // Safe: catch binding is `unknown` under strict; loadConfig only ever
-    // throws ConfigError, so the cast narrows back to the known concrete type.
-    caught = e as ConfigError;
+    if (e instanceof ConfigError) {
+      caught = e;
+    }
   }
-  expect(caught, `expected ConfigError for ${envField}/${reason}`).toBeInstanceOf(ConfigError);
-  // Safe: the toBeInstanceOf assertion above throws on failure, so reaching
-  // here guarantees caught is non-null; tsc can't see through the matcher.
-  expect(caught!.envField).toBe(envField);
-  expect(caught!.reason).toBe(reason);
+  assert.ok(caught instanceof ConfigError, `expected ConfigError for ${envField}/${reason}`);
+  expect(caught.envField).toBe(envField);
+  expect(caught.reason).toBe(reason);
   // Message must NEVER contain any value — it carries only the field name
   // and reason class, never the offending value.
-  expect(caught!.message).not.toContain(VALID.DISCORD_TOKEN);
-  expect(caught!.message).not.toContain(VALID.SHUTDOWN_TIMEOUT_MS);
+  expect(caught.message).not.toContain(VALID.DISCORD_TOKEN);
+  expect(caught.message).not.toContain(VALID.SHUTDOWN_TIMEOUT_MS);
 }
 
 describe('loadConfig', () => {
