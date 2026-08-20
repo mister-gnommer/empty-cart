@@ -71,14 +71,14 @@ The operator wants a fast, side-effect-free way to confirm the bot process is al
 
 ### Functional Requirements
 
-- **FR-001**: The system MUST provide a Discord command that, when sent by a user with text content, causes the bot to post a reply in the same channel returning that text content as the user saw it.
+- **FR-001**: The system MUST provide a Discord command (default invocation `!echo <text>`, with prefix and command name configurable per FR-002) that, when sent by a user with text content, causes the bot to post a reply in the same channel returning that text content with mention tokens neutralized per FR-013.
 - **FR-002**: The system MUST read all runtime configuration (including the Discord token and log level) from environment variables; reading secrets or configuration from committed files is forbidden.
 - **FR-003**: The system MUST refuse to start when any required environment variable is missing or malformed, emitting exactly one structured log entry that identifies the offending variable, and MUST exit with a non-zero status.
 - **FR-004**: The system MUST emit structured logs (machine-parseable, with at minimum a timestamp, severity, message, and a correlation identifier for each user-initiated action) for startup, every handled user command, connection state changes, shutdown trigger, and shutdown completion.
 - **FR-005**: The system MUST treat the Discord token and any other secret as never-loggable; if a secret would otherwise be logged, it MUST be redacted or omitted.
 - **FR-006**: The system MUST handle SIGTERM (and SIGINT as a developer convenience) by ceasing to accept new work, completing in-flight work within a bounded shutdown budget, closing the Discord connection cleanly, flushing logs, and exiting with status 0.
-- **FR-007**: The system MUST expose a health check that runs without any side effects and does not perform a Discord round-trip; it MUST distinguish at minimum between "process healthy", "process healthy but Discord not connected", and "process unhealthy/shutting down".
-- **FR-008**: The system MUST persist no user data in scope v1 and MUST NOT retain echo command payloads after the command has been handled and logged (logs contain what is needed for observability per Principle III, never the raw secret content of messages beyond what is required to reconstruct the run).
+- **FR-007**: The system MUST expose a health check (served on loopback IPv4, default port 8081) that runs without any side effects and does not perform a Discord round-trip; it MUST distinguish between four states: "healthy" (process sound, Discord connected), "degraded" (process sound, Discord disconnected/reconnecting), "shutting-down" (stop requested), and "unhealthy" (process internal failure). See `data-model.md` Entity 5 for the canonical (phase × discord) → status mapping.
+- **FR-008**: The system MUST persist no user data in scope v1 and MUST NOT retain echo command payloads after the command has been handled. Logs satisfy observability per Principle III via metadata only (correlation identifiers, payload lengths, statuses); log entries MUST NOT contain echo payload content.
 - **FR-009**: The system MUST be operable by a single person on one VPS using only the target OS's native process supervisor (e.g., systemd) and the bundled deployment documentation; it MUST NOT require a cluster or managed services.
 - **FR-010**: The system MUST ship a deployment document (checked into the repo) covering environment-variable configuration, installing as a managed background service, starting, stopping, viewing logs, and verifying health.
 - **FR-011**: The system MUST report a clear user-facing error (in the originating channel) when the bot cannot fulfill a command due to an internal problem, rather than failing silently or crashing.
@@ -96,7 +96,7 @@ The operator wants a fast, side-effect-free way to confirm the bot process is al
 
 ### Measurable Outcomes
 
-- **SC-001**: From the moment a user sends the echo command, the bot's reply appears in the same channel in under 2 seconds on a normally loaded VPS.
+- **SC-001**: From the moment a user sends the echo command, the bot's reply appears in the same channel in under 2 seconds on a nominally loaded VPS (CPU < 10% busy, memory usage < 50% of 2 GB).
 - **SC-002**: The bot, once started, runs unattended for at least 7 consecutive days with no operator intervention beyond routine OS-level maintenance, while remaining responsive to the echo command.
 - **SC-003**: On receipt of a stop signal, the bot completes shutdown — including closing the Discord connection and flushing all buffered logs — within 5 seconds and with exit status 0, in at least 95% of trials.
 - **SC-004**: The health check responds with a valid machine-readable status within 1 second and, when queried repeatedly every 10 seconds for 1 hour during normal operation, returns a healthy status 100% of the time.

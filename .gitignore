@@ -1,0 +1,17 @@
+# Node.js / TypeScript
+node_modules/
+dist/
+build/
+*.log
+.env*
+!.env.example
+coverage/
+.nyc_output/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.tmp
+*.swp

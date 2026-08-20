@@ -1,0 +1,166 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
+  "files": {
+    "includes": ["src/**/*.ts", "tests/**/*.ts", "*.config.*", "*.json"]
+  },
+  "formatter": {
+    "indentStyle": "space",
+    "indentWidth": 2,
+    "lineWidth": 100,
+    "lineEnding": "lf"
+  },
+  "javascript": {
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "trailingCommas": "all",
+      "arrowParentheses": "always"
+    }
+  },
+  "linter": {
+    "rules": {
+      "style": {
+        "noNonNullAssertion": "error",
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {
+              "discord.js": "Only src/discord may import discord.js.",
+              "pino": "Only src/config and src/logger may import pino.",
+              "zod": "Only src/config may import zod."
+            }
+          }
+        }
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["src/discord/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": { "paths": { "zod": "Only src/config may import zod." } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/config/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": { "paths": { "discord.js": "Only src/discord may import discord.js." } }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/logger/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "zod": "Only src/config may import zod."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/health/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "zod": "Only src/config may import zod."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/lifecycle/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "zod": "Only src/config may import zod."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/echo/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "zod": "Only src/config may import zod."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/shared/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "zod": "Only src/config may import zod."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["*.config.*", "tests/**", "vitest.*"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": "off",
+            "noNonNullAssertion": "off"
+          }
+        }
+      }
+    }
+  ]
+}
