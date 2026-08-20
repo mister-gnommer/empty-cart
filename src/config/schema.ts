@@ -1,6 +1,6 @@
 // Zod schema for the env-config.
 // This is the ONLY module permitted to import zod (enforced by
-// eslint.config.mjs's `no-restricted-paths` zone).
+// biome.json's `noRestrictedImports` zones).
 import { z } from 'zod';
 
 const logLevel = z.enum(['trace', 'debug', 'info', 'warn', 'error', 'fatal']);

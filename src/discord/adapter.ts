@@ -1,8 +1,7 @@
 // createDiscordAdapter — the ONLY module permitted to import discord.js
-// (Constitution Principle II; enforced by eslint.config.mjs's
-// no-restricted-modules zone on compiled dist/discord/** output). Implements
-// Implements the discord contract: intents, event→state mapping with reconnect
-// correlationId, message routing with childFor(correlationId),
+// (Constitution Principle II; enforced by biome.json's `noRestrictedImports`
+// zones). Implements the discord contract: intents, event→state mapping with
+// reconnect correlationId, message routing with childFor(correlationId),
 // allowedMentions empty-parse on every send, handler-throw canonical
 // error reply, bounded retry ceiling, clean shutdown.
 import { Client, Events, GatewayIntentBits, type Message } from 'discord.js';
