@@ -1,14 +1,14 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.1.0 → 1.2.0
+Version change: 1.2.0 → 1.3.0
 Modified principles: none
 Modified constraints: none
-Added sections: Development Workflow — "Code comments and test names MUST NOT
-  reference spec document identifiers (FR-XXX, SC-XXX, contracts/*.md,
-  data-model.md, quickstart.md, research.md, T### task IDs). Describe the
-  behavior or constraint directly. If a reference truly saves space, use the
-  feature name (e.g. `001-vps-discord-bot`)."
+Added sections: Development Workflow — "Supplementary Discovery Artifacts &
+  Precedence" (spec.md is the sole canonical source of truth; supplementary
+  working files such as interview transcripts or grilling ledgers must be
+  consolidated into spec.md and MUST NOT be consumed directly by
+  /speckit-plan, /speckit-tasks, or /speckit-implement).
 Removed sections: none
 Templates requiring updates:
   - .specify/templates/plan-template.md      ✅ no update needed
@@ -140,6 +140,24 @@ amendment when scope changes, but MUST hold until then.
 7. **Validate on VPS**: A feature is not "done" until it has been exercised
    against the real VPS deployment, not only locally.
 
+### Supplementary Discovery Artifacts & Precedence
+
+1. **Working & Discovery Artifacts**: Contributors and agents may generate
+   auxiliary working files (such as interview transcripts, grilling ledgers
+   like `grilling-ledger.md`, or exploratory notes) located alongside feature
+   specifications.
+2. **Strict Precedence**: The primary feature specification (`spec.md`) is the
+   sole canonical source of truth for requirements, scope, and acceptance
+   criteria.
+3. **No Direct Consumption by Downstream Phases**: Downstream phases
+   (`/speckit-plan`, `/speckit-tasks`, `/speckit-implement`) must consume
+   requirements strictly from `spec.md`. They must not parse or implement
+   directly from supplementary ledgers or interview notes.
+4. **Mandatory Consolidation**: Any decision, edge case, or constraint recorded
+   in a supplementary artifact must be explicitly consolidated into `spec.md`
+   before planning begins. In the event of any contradiction, `spec.md` strictly
+   supersedes all auxiliary artifacts.
+
 ## Governance
 
 This constitution supersedes all other project practices. Where a spec or plan
@@ -156,4 +174,4 @@ conflicts with it, the constitution wins.
 - **Runtime guidance**: When day-to-day development guidance is needed, prefer
   the AGENTS.md file at the repository root over ad-hoc decisions.
 
-**Version**: 1.2.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-07-31
+**Version**: 1.3.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-09-18
