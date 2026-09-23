@@ -46,7 +46,7 @@ cloud.google.com/vision/pricing.
 **Decision**: The operator points the bot at a service-account JSON key file via an
 environment variable; the google-vision module passes it to the client as
 `new ImageAnnotatorClient({ keyFilename })`. Config variable name:
-`OCR_GOOGLE_VISION_KEY_FILE` (required iff `OCR_PROVIDER=google-vision`). The key file's
+`GCP_SA_KEY_PATH` (required iff `OCR_PROVIDER=gcp-vision`). The key file's
 existence/readability is validated once at provider construction (startup), failing fast
 with a startup error — never at first request.
 
@@ -169,7 +169,10 @@ client throws `google-gax` `GoogleError` with a numeric gRPC `code`, a preformat
 | Anything else / unknown | any other rejection | `unavailable` cause `provider-error` |
 
 All `unavailable` causes map to the single generic user message (FR-014); the cause string
-and gRPC code are logged with the correlation id.
+and gRPC code are logged with the correlation id. The same mapping is applied to an in-band
+`responses[0].error` returned inside a 200 (the client resolves `documentTextDetection` to a
+`BatchAnnotateImagesResponse`); the provider inspects that typed field before reading
+`fullTextAnnotation`, so a corrupt image is `undecodable-image`, not empty text (Q37).
 
 **Rationale**: The codes above are the documented/observed behaviors of the Vision
 backend: `INVALID_ARGUMENT: Bad image data.` for undecodable bytes (confirmed in REST and

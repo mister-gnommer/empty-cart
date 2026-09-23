@@ -188,11 +188,22 @@ Derived constraints accepted with B (◐, stated in discussion):
 - Invariant test: `lines.map(l => l.text).join('\n')` must equal `fullTextAnnotation.text` (modulo its trailing newline) — guards provider-adapter fidelity.
 - Line `confidence` is derived (mean of word confidences) since Vision has no line-level score; `box` = union of word boxes. All derived in the adapter, not the contract consumer.
 
+Note (2026-09-23, during planning): line confidence is refined to a **character-weighted**
+mean of constituent word confidences (equivalently the mean of symbol confidences), so a long
+item line is not dominated by a short token. The "mean of word confidences" wording above is
+kept as the interview record. Mirrored in `research.md` R4 and `contracts/google-vision.md`
+clause 3.
+
 #### Q29 — Transport
 
 - ✅ **B — `google-auth-library` (service-account JWT → bearer token) + plain `fetch` to REST v1; no full client library.**
 - A — `@google-cloud/vision` client library
 - C — zero-dependency self-signed JWT
+
+Note (2026-09-23, during planning): the user later chose **A — the `@google-cloud/vision`
+client library**, after reviewing the trade-off. The Q29-B answer above is kept as the
+interview record; this note records the later decision and supersedes it. `research.md` R1
+and `plan.md` use the client library.
 
 #### Q30 — Credentials & env shape
 
@@ -225,6 +236,12 @@ Derived constraints accepted with B (◐, stated in discussion):
 
 - ✅ **A — fires when the call succeeds but whole-page text is empty or whitespace-only; no confidence-based cutoffs (that would be interpretation).**
 - B — plus confidence-cutoff noise filter
+
+Note (2026-09-23, during planning): for a multi-image submission the predicate is evaluated
+on the **combined** text of all images, not per image — an image with no recognized text is
+skipped and the remaining images' text is used; the no-readable-text reply fires only when no
+image yields text. The Q35-A wording above is kept as the interview record. Mirrored in
+`spec.md` FR-013 and `contracts/shopping-list.md` clause 1.5.
 
 ### Round 5 — final frontier (2026-09-21)
 

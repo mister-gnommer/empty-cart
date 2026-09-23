@@ -145,7 +145,7 @@ src/
 │   ├── adapter.ts        # extended: attachment routing, allowlist, usage hint, submission calls
 │   └── split-reply.ts    # NEW pure: 2000-char line-boundary split + … continuation marker
 ├── lifecycle/
-│   └── run-app.ts        # extended: build provider per config (google-vision | disabled),
+│   └── run-app.ts        # extended: build provider per config (gcp-vision | none),
 │                         #   wire fetchImage + handler + usage hint into the adapter
 ├── health/               # unchanged
 ├── logger/               # unchanged
@@ -162,7 +162,7 @@ tests/
 └── helpers/              # + stub-ocr-provider.ts, scripted fetch helpers
 
 biome.json                # +1 restricted import: @google-cloud/vision → src/google-vision only
-.env.example              # + OCR_PROVIDER, OCR_GOOGLE_VISION_KEY_FILE, OCR_LANGUAGE_HINTS,
+.env.example              # + OCR_PROVIDER, GCP_SA_KEY_PATH, OCR_LANGUAGE_HINTS,
                           #   OCR_CHANNEL_ALLOWLIST
 package.json              # + @google-cloud/vision@6.1.0 (exact pin)
 docs/deployment.md        # + key-file provisioning and OCR env vars
