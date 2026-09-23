@@ -35,13 +35,13 @@ failing before the module is implemented.
 2. Env (`.env` / systemd unit):
    ```bash
    DISCORD_TOKEN=…
-   OCR_PROVIDER=google-vision
-   OCR_GOOGLE_VISION_KEY_FILE=/etc/empty-cart/gcv-key.json
+   OCR_PROVIDER=gcp-vision
+   GCP_SA_KEY_PATH=/etc/empty-cart/gcv-key.json
    # OCR_LANGUAGE_HINTS=en        # optional; omit for auto-detect
    # OCR_CHANNEL_ALLOWLIST=123456789012345678   # optional; omit = all channels
    ```
 3. `npm run build && npm start` — a missing/unreadable key file fails at startup naming
-   `OCR_GOOGLE_VISION_KEY_FILE` (boot-time validation, not first-photo-time).
+   `GCP_SA_KEY_PATH` (boot-time validation, not first-photo-time).
 
 ## 3. Live smoke scenarios (manual, real Discord + real Vision)
 
@@ -62,7 +62,7 @@ channel, and recognized text must match the photo's lines in order (SC-002).
 | 10 | `!echo hello` anywhere (incl. non-allowlisted channel) | Echo works; no usage hint added |
 | 11 | Temporarily revoke the service account / disable the Vision API, send a photo | The generic "Service is not available…" message; logs carry the specific cause + correlation id; bot stays responsive |
 | 12 | Long list producing > 2000 chars | Multiple messages in order; a mid-line cut shows the `…` continuation marker |
-| 13 | `OCR_PROVIDER=disabled`, send a photo | Generic service-unavailable message — never silence |
+| 13 | `OCR_PROVIDER=none`, send a photo | Generic service-unavailable message — never silence |
 
 Scenario 11 restores credentials afterwards. Scenario outcomes are cross-checked against
 `journalctl -u empty-cart` — every submission shows received/submitted/succeeded|failed
@@ -73,7 +73,9 @@ with a correlation id and NO text/bytes (SC-005).
 Before the feature is called done, confirm one GitHub issue exists for each deferred
 item: `!help` command; context-aware/AI-powered guidance; duplicate-submission
 de-duplication; direct-message handling; image-format conversion (HEIC→JPEG); operator
-observability/monitoring (incl. unsupported-format counter).
+observability/monitoring (incl. unsupported-format counter). Creating these issues is the
+first task in `tasks.md` (Phase 2), per the decision to track them up front rather than at
+the end.
 
 ## 5. VPS validation (Constitution workflow §7)
 

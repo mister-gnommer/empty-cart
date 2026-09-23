@@ -94,8 +94,8 @@ The replaceable recognition service behind the provider contract.
 
 | Attribute | Value |
 |---|---|
-| selection identity | `'google-vision' \| 'disabled'` (config `OCR_PROVIDER`) |
-| credential reference | service-account key file path (config `OCR_GOOGLE_VISION_KEY_FILE`) |
+| selection identity | `'gcp-vision' \| 'none'` (config `OCR_PROVIDER`) |
+| credential reference | service-account key file path (config `GCP_SA_KEY_PATH`) |
 | language hints | optional BCP-47 list (config `OCR_LANGUAGE_HINTS`) |
 | operational status | derived per-call from outcome mapping (R6); no health state is kept |
 
@@ -141,9 +141,9 @@ Environment-derived; additions to the existing `Config` type:
 
 | Env var | Config field | Required | Validation |
 |---|---|---|---|
-| `OCR_PROVIDER` | `ocrProvider: 'google-vision' \| 'disabled'` | no (default `'disabled'`) | enum |
-| `OCR_GOOGLE_VISION_KEY_FILE` | `ocrGoogleVisionKeyFile: string` | iff provider = `google-vision` (cross-field rule) | non-empty; readability checked at provider construction (startup) |
-| `OCR_LANGUAGE_HINTS` | `ocrLanguageHints: readonly string[]` | no (default `[]` = auto-detect) | comma-separated; each entry loosely BCP-47 (`/^[A-Za-z]{2,3}(-[A-Za-z0-9]{2,8})*$/`) |
+| `OCR_PROVIDER` | `ocrProvider: 'gcp-vision' \| 'none'` | no (default `'none'`) | enum |
+| `GCP_SA_KEY_PATH` | `gcpSaKeyPath: string` | iff provider = `gcp-vision` (cross-field rule) | non-empty; readability checked at provider construction (startup) |
+| `OCR_LANGUAGE_HINTS` | `ocrLanguageHints: readonly string[]` | no (default `[]` = auto-detect) | comma-separated; each entry loosely BCP-47 (`/^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/`, accepts `en-t-i0-handwrit`) |
 | `OCR_CHANNEL_ALLOWLIST` | `ocrChannelAllowlist: readonly string[] \| null` | no (`null` = every channel processed) | comma-separated snowflakes (`/^\d{17,20}$/`) |
 
 Secrets rule: the key **path** may be logged; key **contents** never. The hardcoded

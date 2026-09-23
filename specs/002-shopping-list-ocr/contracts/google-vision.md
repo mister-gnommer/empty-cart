@@ -18,7 +18,7 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
 
 `createGoogleVisionProvider` reads the service-account key file at construction
 (startup) and throws if it is missing/unreadable — the operator learns about a bad
-`OCR_GOOGLE_VISION_KEY_FILE` at boot, not at the first photo (research R2). It constructs
+`GCP_SA_KEY_PATH` at boot, not at the first photo (research R2). It constructs
 `new ImageAnnotatorClient({ keyFilename: keyFile })` internally.
 
 ## Behavioral contract
@@ -41,10 +41,18 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
    mean of constituent word confidences (R4); per-line `boundingBox` = axis-aligned union
    of constituent word `boundingBox.vertices` in page pixel space (R5). The `ocr`
    contract fidelity invariant (`lines.join('\n') === text`) MUST hold.
-4. **Empty success.** A successful response with no `fullTextAnnotation` or with
-   empty/whitespace text resolves `ok` with the empty recognition — the "no readable
-   text" decision belongs to the orchestrator, not the provider.
-5. **Error mapping (`mapGoogleError`, research R6).** gRPC `GoogleError.code`:
+4. **Response handling.** `documentTextDetection` resolves to a `BatchAnnotateImagesResponse`
+   (the library's own type); the provider reads the single entry at `responses[0]`. No
+   exhaustive failure matrix is invented — the library types define the surface, and only
+   two fields matter:
+   - `responses[0].error` present (Vision reports per-image failures in-band on a 200) →
+     mapped through `mapGoogleError`; the `google.rpc.Status` carries the same numeric
+     `code`/`message` shape, so a decode failure becomes `undecodable-image` (Q37);
+   - otherwise `responses[0].fullTextAnnotation` is passed to `toRecognition`; a missing or
+     empty annotation resolves `ok` with the empty recognition — the "no readable text"
+     decision belongs to the orchestrator, not the provider.
+5. **Error mapping (`mapGoogleError`, research R6).** Applied to both a thrown `GoogleError`
+   and an in-band `responses[0].error`. gRPC/status `code`:
    `3` + message containing `Bad image data` → `undecodable-image`;
    `4` → `unavailable`/`deadline-exceeded`; `7` → `unavailable`/`unauthorized`;
    `8` → `unavailable`/`quota-exceeded`; `14` → `unavailable`/`unreachable`;
@@ -68,6 +76,8 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
 - `mapGoogleError` table tests: one case per row of the mapping table in clause 5,
   including a non-Error throw and a `code: 3` without the `Bad image data` signature
   (conservative `provider-error`).
+- In-band failure: a `BatchAnnotateImagesResponse` whose `responses[0].error` carries
+  `code: 3`/`Bad image data` → `undecodable-image`, NOT empty text (Q37).
 - `createGoogleVisionProvider` construction failure: nonexistent `keyFile` → throws at
   construction (startup), error message names the env var, never the key contents.
 - Request-shape test with a stubbed `ImageAnnotatorClient` (constructor seam): asserts
