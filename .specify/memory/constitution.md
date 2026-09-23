@@ -1,14 +1,15 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.2.0 → 1.3.0
+Version change: 1.3.0 → 1.4.0
 Modified principles: none
 Modified constraints: none
-Added sections: Development Workflow — "Supplementary Discovery Artifacts &
-  Precedence" (spec.md is the sole canonical source of truth; supplementary
-  working files such as interview transcripts or grilling ledgers must be
-  consolidated into spec.md and MUST NOT be consumed directly by
-  /speckit-plan, /speckit-tasks, or /speckit-implement).
+Added sections: Development Workflow — "Late-Stage Decisions & Supersession"
+  (pre-code review may be light; the binding review is at code review; code
+  that contradicts a decision recorded in spec.md, plan.md, or a contract MUST
+  be flagged, never silently accepted or reverted; approved changes update the
+  source artifacts in the same unit of work with a dated supersession note,
+  while spec.md remains canonical).
 Removed sections: none
 Templates requiring updates:
   - .specify/templates/plan-template.md      ✅ no update needed
@@ -158,6 +159,34 @@ amendment when scope changes, but MUST hold until then.
    before planning begins. In the event of any contradiction, `spec.md` strictly
    supersedes all auxiliary artifacts.
 
+### Late-Stage Decisions & Supersession
+
+Pre-code artifacts exist to make intent reviewable early; they need not be
+reviewed exhaustively before coding. The binding review point is code review,
+when behavior is unambiguous.
+
+1. **Pre-code review MAY be light**: A contributor MAY skim, defer, or skip
+   detailed review of planning-phase artifacts (`plan.md`, `research.md`,
+   `data-model.md`, `contracts/`). This is a deliberate trade, accepted because
+   the code review is the backstop.
+2. **Contradictions MUST be surfaced, never silent**: Any code change that
+   contradicts a decision recorded in `spec.md`, `plan.md`, or a contract MUST
+   be flagged explicitly during review. It MUST NOT be silently accepted, and
+   it MUST NOT be silently reverted on the grounds that "the spec says
+   otherwise."
+3. **Approval updates the source**: If the change is approved, the affected
+   source artifact(s) MUST be revised in the same unit of work, with a dated
+   note recording that the earlier decision was deliberately superseded (what
+   changed and why).
+4. **`spec.md` remains canonical**: This section defines the only sanctioned way
+   to change `spec.md` — by explicit amendment — not whether it is canonical.
+   Silent divergence between the code and `spec.md` stays forbidden; only
+   recorded supersession is allowed.
+5. **Tooling findings are inputs, not orders**: A finding that code contradicts
+   an artifact (e.g. from `/speckit-analyze` or `/speckit-converge`) records a
+   contradiction for this adjudication. It does not by itself mean the code
+   must change.
+
 ## Governance
 
 This constitution supersedes all other project practices. Where a spec or plan
@@ -174,4 +203,4 @@ conflicts with it, the constitution wins.
 - **Runtime guidance**: When day-to-day development guidance is needed, prefer
   the AGENTS.md file at the repository root over ad-hoc decisions.
 
-**Version**: 1.3.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-09-18
+**Version**: 1.4.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-09-23
