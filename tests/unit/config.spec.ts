@@ -23,6 +23,9 @@ const DEFAULT_CONFIG: Config = {
   shutdownTimeoutMs: 5000,
   healthHost: '127.0.0.1',
   healthPort: 8081,
+  ocrProvider: { kind: 'none' },
+  ocrLanguageHints: [],
+  ocrChannelAllowlist: null,
 };
 
 function expectError(
@@ -164,6 +167,87 @@ describe('loadConfig', () => {
     });
   });
 
+  describe('OCR defaults', () => {
+    it('env with only DISCORD_TOKEN → recognition disabled, no hints, no allowlist', () => {
+      const cfg = loadConfig({ DISCORD_TOKEN: DEFAULT_CONFIG.discordToken });
+      expect(cfg.ocrProvider).toEqual({ kind: 'none' });
+      expect(cfg.ocrLanguageHints).toEqual([]);
+      expect(cfg.ocrChannelAllowlist).toBeNull();
+    });
+  });
+
+  describe('OCR_PROVIDER', () => {
+    it('gcp-vision without a key path → ConfigError missing GCP_SA_KEY_PATH', () => {
+      expectError({ ...VALID, OCR_PROVIDER: 'gcp-vision' }, 'GCP_SA_KEY_PATH', 'missing');
+    });
+    it('gcp-vision with a key path → loads', () => {
+      const cfg = loadConfig({
+        ...VALID,
+        OCR_PROVIDER: 'gcp-vision',
+        GCP_SA_KEY_PATH: '/etc/empty-cart/gcv-key.json',
+      });
+      expect(cfg.ocrProvider).toEqual({
+        kind: 'gcp-vision',
+        keyFilePath: '/etc/empty-cart/gcv-key.json',
+      });
+    });
+    it('malformed: unknown value → malformed', () => {
+      expectError({ ...VALID, OCR_PROVIDER: 'bogus' }, 'OCR_PROVIDER', 'malformed');
+    });
+    it('explicit none → loads as none', () => {
+      expect(loadConfig({ ...VALID, OCR_PROVIDER: 'none' }).ocrProvider).toEqual({ kind: 'none' });
+    });
+    it('empty value behaves as the default none (the sample env file ships it blank)', () => {
+      expect(loadConfig({ ...VALID, OCR_PROVIDER: '' }).ocrProvider).toEqual({ kind: 'none' });
+    });
+  });
+
+  describe('GCP_SA_KEY_PATH', () => {
+    it('gcp-vision with an empty key path → ConfigError missing', () => {
+      expectError(
+        { ...VALID, OCR_PROVIDER: 'gcp-vision', GCP_SA_KEY_PATH: '' },
+        'GCP_SA_KEY_PATH',
+        'missing',
+      );
+    });
+    it('provider none + key path present → loads with recognition disabled (operator pre-staging)', () => {
+      const cfg = loadConfig({ ...VALID, GCP_SA_KEY_PATH: '/etc/empty-cart/gcv-key.json' });
+      expect(cfg.ocrProvider).toEqual({ kind: 'none' });
+    });
+  });
+
+  describe('OCR_LANGUAGE_HINTS', () => {
+    it('comma-separated loose BCP-47 tags → parsed verbatim, including the handwriting form', () => {
+      const cfg = loadConfig({
+        ...VALID,
+        OCR_LANGUAGE_HINTS: 'en,de,zh-Hans,en-t-i0-handwrit',
+      });
+      expect(cfg.ocrLanguageHints).toEqual(['en', 'de', 'zh-Hans', 'en-t-i0-handwrit']);
+    });
+    it('malformed: entry containing a space → malformed', () => {
+      expectError({ ...VALID, OCR_LANGUAGE_HINTS: 'en, de' }, 'OCR_LANGUAGE_HINTS', 'malformed');
+    });
+  });
+
+  describe('OCR_CHANNEL_ALLOWLIST', () => {
+    it('two 18-digit channel ids → parsed array', () => {
+      const cfg = loadConfig({
+        ...VALID,
+        OCR_CHANNEL_ALLOWLIST: '123456789012345678,987654321098765432',
+      });
+      expect(cfg.ocrChannelAllowlist).toEqual(['123456789012345678', '987654321098765432']);
+    });
+    it('malformed: non-numeric entry → malformed', () => {
+      expectError({ ...VALID, OCR_CHANNEL_ALLOWLIST: 'abc' }, 'OCR_CHANNEL_ALLOWLIST', 'malformed');
+    });
+    it('malformed: too-short entry → malformed', () => {
+      expectError({ ...VALID, OCR_CHANNEL_ALLOWLIST: '123' }, 'OCR_CHANNEL_ALLOWLIST', 'malformed');
+    });
+    it('malformed: explicit empty value (would silently disable recognition everywhere)', () => {
+      expectError({ ...VALID, OCR_CHANNEL_ALLOWLIST: '' }, 'OCR_CHANNEL_ALLOWLIST', 'malformed');
+    });
+  });
+
   describe('first-invalid-field ordering', () => {
     it('reports the first invalid field in documented order', () => {
       // Both DISCORD_TOKEN (missing) and HEALTH_PORT (malformed) — the loader
@@ -171,6 +255,20 @@ describe('loadConfig', () => {
       const env: NodeJS.ProcessEnv = { ...VALID, HEALTH_PORT: '0' };
       delete env.DISCORD_TOKEN;
       expectError(env, 'DISCORD_TOKEN', 'missing');
+    });
+    it('validates the 001 fields before the OCR fields', () => {
+      expectError(
+        { ...VALID, HEALTH_PORT: '0', OCR_PROVIDER: 'bogus' },
+        'HEALTH_PORT',
+        'malformed',
+      );
+    });
+    it('validates OCR_PROVIDER before the cross-field GCP_SA_KEY_PATH rule', () => {
+      expectError(
+        { ...VALID, OCR_PROVIDER: 'bogus', GCP_SA_KEY_PATH: '' },
+        'OCR_PROVIDER',
+        'malformed',
+      );
     });
   });
 });

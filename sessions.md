@@ -1,0 +1,12 @@
+- `5f566a1b-a0c5-41d2-8098-10ffdb11db33` — 2026-09-24 — Implement phase 4 of feature 002 (shopping-list OCR)
+- `8d986db9-0e82-4d72-80a5-297393f556df` — 2026-09-24 — Implement phase 5 of feature 002 (shopping-list OCR)
+- `a6a484bb-c65b-4c1c-8a6a-af48f978c200` — 2026-09-24 — Implement phase 6 of feature 002 (shopping-list OCR)
+- `4277df12-a953-4ab0-a6ce-6476cdef8b94` — 2026-09-25 — Run speckit-analyze on feature 002 and compare findings against implemented code
+- `7774a914-1947-4b99-bf57-22b9ed741acb` — 2026-09-25 — Pragmatic code review of PR #10 (shopping-list OCR)
+- `c4c8b7c4-ab67-4068-a543-e84b476ef88b` — 2026-09-26 — Author-mode Q&A for PR 10 review (002 shopping-list OCR)
+- `1ee69c28-458b-4314-9d0f-1e26527064b2` — 2026-09-27 — Drop OCR line reconstruction, keep text only (002 handoff)
+- `cde37a11-282b-4fa4-bc1d-8ef7e065dff2` — 2026-09-28 — Author-mode Q&A for feature 002 implementation review
+- `5c753601-e749-42f9-a00e-5b81635952af` — 2026-09-29 — act as author of 002 shopping-list OCR changes (review Q&A)
+- `792461a9-38fe-4059-bf0d-4df43b2f928b` — 2026-10-03 — Audit feature 002 tests against writing-tests skill rules
+- `bf3f135d-2e05-4878-8e09-a03e888163e3` — 2026-10-03 — Explain `budget` AbortSignal naming in handle-list-submission
+- `9796c957-caea-4bfe-a45a-7a243ed7c101` — 2026-10-07 — Pragmatic review of feature 002 tests incl. writing-tests skill compliance
