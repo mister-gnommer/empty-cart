@@ -6,14 +6,20 @@ import { ConfigError, loadConfig } from '../config/load-config';
 import type { DiscordAdapter } from '../discord/adapter';
 import { createDiscordAdapter } from '../discord/adapter';
 import { handleEchoCommand } from '../echo/handle-echo';
+import { createGoogleVisionProvider } from '../google-vision/provider';
 import { type HealthServer, startHealthServer } from '../health/server';
+import { fetchAndValidateImage } from '../image/fetch-image';
 import {
   createBootstrapLogger,
   createEmergencyLogger,
   createLogger,
 } from '../logger/create-logger';
+import { createDisabledProvider } from '../ocr/disabled-provider';
+import type { OcrProvider } from '../ocr/types';
 import { newCorrelationId } from '../shared/correlation-id';
 import type { BotState, ProcessPhase } from '../shared/types';
+import { createListSubmissionHandler } from '../shopping-list/handle-list-submission';
+import { usageHintMessage } from '../shopping-list/messages';
 
 let shuttingDownInFlight = false;
 
@@ -145,7 +151,41 @@ export async function runApp(): Promise<void> {
   process.on('SIGTERM', () => requestShutdown('SIGTERM'));
   process.on('SIGINT', () => requestShutdown('SIGINT'));
 
-  // §1.4 — start health server (post-config; phase stays `starting`).
+  // §1.4 — OCR provider selection. Construction validates the service-account
+  // key file when recognition is enabled, so a bad path fails HERE (startup),
+  // never at first-photo time; the throw follows the post-config fatal pattern.
+  let ocrProvider: OcrProvider;
+  try {
+    if (config.ocrProvider === 'gcp-vision') {
+      const keyFile = config.gcpSaKeyPath;
+      if (keyFile === null) {
+        // Unreachable after config validation (cross-field rule); kept total.
+        throw new Error('GCP_SA_KEY_PATH must be set when OCR_PROVIDER=gcp-vision');
+      }
+      ocrProvider = createGoogleVisionProvider({ keyFile });
+    } else {
+      ocrProvider = createDisabledProvider();
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.fatal({ msg: `ocr provider failed to construct: ${message}` });
+    process.exit(1);
+    return;
+  }
+
+  // §1.5 — list-submission handler (pure orchestration; the swap surface for a
+  // new OCR provider is exactly: a new provider module + a config enum value +
+  // the wiring branch above).
+  const listSubmission = createListSubmissionHandler({
+    provider: ocrProvider,
+    fetchImage: fetchAndValidateImage,
+    languageHints: config.ocrLanguageHints,
+    logger: log,
+    now: Date.now,
+  });
+  const usageHint = usageHintMessage(config.commandPrefix);
+
+  // §1.6 — start health server (post-config; phase stays `starting`).
   try {
     healthServer = startHealthServer({
       config: { healthHost: config.healthHost, healthPort: config.healthPort },
@@ -159,13 +199,15 @@ export async function runApp(): Promise<void> {
     return;
   }
 
-  // §1.5 — discord adapter (only importer of discord.js)
+  // §1.7 — discord adapter (only importer of discord.js)
   try {
     adapter = createDiscordAdapter({
       config,
       logger: log,
       botState,
       echo: handleEchoCommand,
+      listSubmission,
+      usageHint,
     });
   } catch (e) {
     const message = e instanceof Error ? e.message : String(e);
@@ -188,7 +230,7 @@ export async function runApp(): Promise<void> {
   // point the health endpoint reports phase "starting".
   botState.phase = 'running';
 
-  // §1.6 — bot started (no secrets)
+  // §1.8 — bot started (no secrets)
   log.info({
     msg: 'bot started',
     healthAddress: healthServer.address,

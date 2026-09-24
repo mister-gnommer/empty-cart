@@ -27,7 +27,8 @@
             "paths": {
               "discord.js": "Only src/discord may import discord.js.",
               "pino": "Only src/config and src/logger may import pino.",
-              "zod": "Only src/config may import zod."
+              "zod": "Only src/config may import zod.",
+              "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
             }
           }
         }
@@ -42,7 +43,12 @@
           "style": {
             "noRestrictedImports": {
               "level": "error",
-              "options": { "paths": { "zod": "Only src/config may import zod." } }
+              "options": {
+                "paths": {
+                  "zod": "Only src/config may import zod.",
+                  "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
+                }
+              }
             }
           }
         }
@@ -55,7 +61,12 @@
           "style": {
             "noRestrictedImports": {
               "level": "error",
-              "options": { "paths": { "discord.js": "Only src/discord may import discord.js." } }
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
+                }
+              }
             }
           }
         }
@@ -71,7 +82,8 @@
               "options": {
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
-                  "zod": "Only src/config may import zod."
+                  "zod": "Only src/config may import zod.",
+                  "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
                 }
               }
             }
@@ -89,7 +101,8 @@
               "options": {
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
-                  "zod": "Only src/config may import zod."
+                  "zod": "Only src/config may import zod.",
+                  "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
                 }
               }
             }
@@ -107,7 +120,8 @@
               "options": {
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
-                  "zod": "Only src/config may import zod."
+                  "zod": "Only src/config may import zod.",
+                  "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
                 }
               }
             }
@@ -125,7 +139,8 @@
               "options": {
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
-                  "zod": "Only src/config may import zod."
+                  "zod": "Only src/config may import zod.",
+                  "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
                 }
               }
             }
@@ -143,6 +158,26 @@
               "options": {
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
+                  "zod": "Only src/config may import zod.",
+                  "@google-cloud/vision": "Only src/google-vision may import @google-cloud/vision."
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/google-vision/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "pino": "Only src/config and src/logger may import pino.",
                   "zod": "Only src/config may import zod."
                 }
               }

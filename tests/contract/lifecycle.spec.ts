@@ -17,6 +17,10 @@ const DEFAULT_CONFIG: Config = {
   shutdownTimeoutMs: 5000,
   healthHost: '127.0.0.1',
   healthPort: 8081,
+  ocrProvider: 'none',
+  gcpSaKeyPath: null,
+  ocrLanguageHints: [],
+  ocrChannelAllowlist: null,
 };
 
 // Drive lifecycle.runApp() with mocked child modules. We import the module

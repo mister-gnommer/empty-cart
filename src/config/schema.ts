@@ -21,6 +21,13 @@ const positiveInt = z
   .int()
   .refine((n) => Number.isSafeInteger(n), { message: 'must be an integer' });
 
+// Loose BCP-47: 2-3 letter base language with optional subtags — accepts the
+// handwriting form `en-t-i0-handwrit`.
+export const LANGUAGE_HINT_PATTERN = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/u;
+
+// Discord channel snowflake.
+export const CHANNEL_SNOWFLAKE_PATTERN = /^\d{17,20}$/u;
+
 export const configSchema = z.object({
   discordToken: z.string().min(1, 'discordToken must be non-empty'),
   logLevel: logLevel.default('info'),
@@ -48,6 +55,16 @@ export const configSchema = z.object({
     .min(1, 'healthPort must be >= 1')
     .max(65535, 'healthPort must be <= 65535')
     .default(8081),
+  ocrProvider: z.enum(['gcp-vision', 'none']).default('none'),
+  // A path, not a secret: loggable. File readability is deliberately NOT
+  // checked here (config is pure I/O-free) — the provider validates it at
+  // construction (startup).
+  gcpSaKeyPath: z.string().min(1).nullable().default(null),
+  ocrLanguageHints: z.array(z.string().regex(LANGUAGE_HINT_PATTERN)).default([]),
+  ocrChannelAllowlist: z
+    .array(z.string().regex(CHANNEL_SNOWFLAKE_PATTERN))
+    .nullable()
+    .default(null),
 });
 
 export type ConfigSchema = z.infer<typeof configSchema>;

@@ -21,6 +21,10 @@ describe('redaction end-to-end', () => {
       shutdownTimeoutMs: 5000,
       healthHost: '127.0.0.1',
       healthPort: 8081,
+      ocrProvider: 'none',
+      gcpSaKeyPath: null,
+      ocrLanguageHints: [],
+      ocrChannelAllowlist: null,
     };
     const { logger, chunks } = makeStreamLogger('debug');
 

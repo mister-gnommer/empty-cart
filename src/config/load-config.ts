@@ -2,7 +2,7 @@
 // Does NOT log (the composition root owns the fatal
 // log line). The returned Config is frozen.
 import type { Config } from '../shared/types';
-import { configSchema } from './schema';
+import { CHANNEL_SNOWFLAKE_PATTERN, configSchema, LANGUAGE_HINT_PATTERN } from './schema';
 
 const FIELD_ORDER = [
   'discordToken',
@@ -13,6 +13,10 @@ const FIELD_ORDER = [
   'shutdownTimeoutMs',
   'healthHost',
   'healthPort',
+  'ocrProvider',
+  'gcpSaKeyPath',
+  'ocrLanguageHints',
+  'ocrChannelAllowlist',
 ] as const;
 
 const ENV_NAME: Record<(typeof FIELD_ORDER)[number], string> = {
@@ -24,7 +28,21 @@ const ENV_NAME: Record<(typeof FIELD_ORDER)[number], string> = {
   shutdownTimeoutMs: 'SHUTDOWN_TIMEOUT_MS',
   healthHost: 'HEALTH_HOST',
   healthPort: 'HEALTH_PORT',
+  ocrProvider: 'OCR_PROVIDER',
+  gcpSaKeyPath: 'GCP_SA_KEY_PATH',
+  ocrLanguageHints: 'OCR_LANGUAGE_HINTS',
+  ocrChannelAllowlist: 'OCR_CHANNEL_ALLOWLIST',
 };
+
+// OCR fields where an explicitly-empty env value behaves as absent (the
+// documented default applies) — the sample env file ships them blank, so
+// blank must not break boot. GCP_SA_KEY_PATH has its own cross-field empty
+// handling; an empty OCR_CHANNEL_ALLOWLIST stays malformed on purpose (an
+// empty allowlist would silently disable recognition everywhere).
+const EMPTY_EQUALS_ABSENT: ReadonlySet<(typeof FIELD_ORDER)[number]> = new Set([
+  'ocrProvider',
+  'ocrLanguageHints',
+]);
 
 export class ConfigError extends Error {
   readonly envField: string;
@@ -62,18 +80,39 @@ function isRequiredField(field: (typeof FIELD_ORDER)[number]): boolean {
 
 // Validate each field in documented order, returning the first error encountered
 // classified as `missing` or `malformed`, or the assembled Config on success.
+// `partial` carries the values validated so far, enabling cross-field rules
+// (e.g. the key-path requirement depends on the already-parsed provider).
 function validateField(
   field: (typeof FIELD_ORDER)[number],
   raw: unknown,
+  partial: Record<string, unknown>,
 ): { value: unknown } | { error: ConfigError } {
   const required = isRequiredField(field);
   const envName = ENV_NAME[field];
 
-  if (isAbsent(raw)) {
+  if (field === 'gcpSaKeyPath') {
+    // Cross-field rule: required iff the gcp-vision provider is selected,
+    // evaluated at this field's position so the first error stays deterministic.
+    // With the provider disabled, a present non-empty path is still stored
+    // (operator pre-staging); absent or blank yields null.
+    const provider = partial.ocrProvider ?? 'none';
+    if (isAbsent(raw) || raw === '') {
+      if (provider === 'gcp-vision') {
+        return { error: new ConfigError({ envField: envName, reason: 'missing' }) };
+      }
+      return { value: undefined };
+    }
+    if (typeof raw !== 'string') {
+      return { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
+    }
+    return { value: raw };
+  }
+
+  if (isAbsent(raw) || (raw === '' && EMPTY_EQUALS_ABSENT.has(field))) {
     if (required) {
       return { error: new ConfigError({ envField: envName, reason: 'missing' }) };
     }
-    // Optional field truly absent → use zod default.
+    // Optional field truly absent (or blank where blank means absent) → zod default.
     return { value: undefined };
   }
 
@@ -189,6 +228,44 @@ function validateField(
         ? { value: n }
         : { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
     }
+    case 'ocrProvider': {
+      if (typeof raw !== 'string') {
+        return {
+          error: new ConfigError({ envField: envName, reason: 'malformed' }),
+        };
+      }
+      const ok = raw === 'gcp-vision' || raw === 'none';
+      return ok
+        ? { value: raw }
+        : { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
+    }
+    case 'ocrLanguageHints': {
+      if (typeof raw !== 'string') {
+        return {
+          error: new ConfigError({ envField: envName, reason: 'malformed' }),
+        };
+      }
+      // Comma-separated loose BCP-47 tags; empty entries carry no hint and are
+      // skipped, every non-empty entry must match. No trimming — an entry with
+      // surrounding whitespace is operator error and stays malformed.
+      const hints = raw.split(',').filter((entry) => entry.length > 0);
+      const ok = hints.every((entry) => LANGUAGE_HINT_PATTERN.test(entry));
+      return ok
+        ? { value: hints }
+        : { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
+    }
+    case 'ocrChannelAllowlist': {
+      if (typeof raw !== 'string') {
+        return {
+          error: new ConfigError({ envField: envName, reason: 'malformed' }),
+        };
+      }
+      const ids = raw.split(',');
+      const ok = ids.every((entry) => CHANNEL_SNOWFLAKE_PATTERN.test(entry));
+      return ok
+        ? { value: ids }
+        : { error: new ConfigError({ envField: envName, reason: 'malformed' }) };
+    }
   }
 }
 
@@ -199,7 +276,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   for (const field of FIELD_ORDER) {
     const envName = ENV_NAME[field];
     const raw = env[envName];
-    const result = validateField(field, raw);
+    const result = validateField(field, raw, partial);
     if ('error' in result) {
       throw result.error;
     }

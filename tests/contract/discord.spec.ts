@@ -22,6 +22,10 @@ const baseConfig: Config = {
   shutdownTimeoutMs: 5000,
   healthHost: '127.0.0.1',
   healthPort: 8081,
+  ocrProvider: 'none',
+  gcpSaKeyPath: null,
+  ocrLanguageHints: [],
+  ocrChannelAllowlist: null,
 };
 
 function makeBotState(): BotState {
@@ -57,6 +61,7 @@ function buildFakeMessage(opts: {
   const channel = {
     id: opts.channelId ?? 'chan-1',
     send: vi.fn(sendImpl),
+    isThread: () => false,
   };
   return {
     raw: {
@@ -91,6 +96,9 @@ function makeAdapter(
     logger: cap.logger as never,
     botState,
     echo: opts.echo ?? handleEchoCommand,
+    // This suite exercises the echo path only; the list handler is a stub.
+    listSubmission: vi.fn(async () => ({ text: '' })),
+    usageHint: 'unused-usage-hint',
     clientFactory: () => client,
   });
 }
