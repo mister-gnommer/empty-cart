@@ -8,6 +8,21 @@ export type ConnectionState = 'disconnected' | 'connected' | 'reconnecting' | 'd
 
 export type LogLevel = 'trace' | 'debug' | 'info' | 'warn' | 'error' | 'fatal';
 
+/**
+ * Selected OCR backend with the settings only that backend needs. `none`
+ * disables recognition (image posts still get a reply, never silence).
+ */
+export type OcrProviderConfig =
+  | Readonly<{
+      kind: 'gcp-vision';
+      /**
+       * Path to the Google Cloud service-account JSON key. The path itself is
+       * loggable — the key file's contents must never be read into logs.
+       */
+      keyFilePath: string;
+    }>
+  | Readonly<{ kind: 'none' }>;
+
 export type Config = Readonly<{
   discordToken: string;
   logLevel: LogLevel;
@@ -17,6 +32,11 @@ export type Config = Readonly<{
   shutdownTimeoutMs: number;
   healthHost: string;
   healthPort: number;
+  ocrProvider: OcrProviderConfig;
+  /** Loose BCP-47 hints forwarded to the provider; empty = provider auto-detects. */
+  ocrLanguageHints: readonly string[];
+  /** Channel snowflakes in which photos are processed; null = every visible channel. */
+  ocrChannelAllowlist: readonly string[] | null;
 }>;
 
 export type BotState = {

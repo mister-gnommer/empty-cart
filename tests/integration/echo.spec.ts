@@ -2,20 +2,12 @@ import assert from 'node:assert/strict';
 import { describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
-import type { BotState, Config } from '../../src/shared/types';
+import type { BotState } from '../../src/shared/types';
+import { makeConfig } from '../helpers/config-fixture';
 import { makeCapturingLogger } from '../helpers/logger';
 import { emitMessage, makeStubbedClient } from '../helpers/stubbed-client';
 
-const config: Config = {
-  discordToken: 'tok',
-  logLevel: 'info',
-  commandPrefix: '!',
-  echoCommandName: 'echo',
-  echoMaxLength: 1900,
-  shutdownTimeoutMs: 5000,
-  healthHost: '127.0.0.1',
-  healthPort: 8081,
-};
+const config = makeConfig();
 
 describe('integration: !echo round trip', () => {
   it('hand-driven Events.MessageCreate produces the echoed reply on a stubbed channel.send with correlationId on every log line of the handler call', async () => {
@@ -34,6 +26,9 @@ describe('integration: !echo round trip', () => {
       logger: cap.logger as never,
       botState,
       echo: handleEchoCommand,
+      // This suite exercises the echo path only; the list handler is a stub.
+      listSubmission: vi.fn(async () => ({ text: '' })),
+      usageHint: 'unused-usage-hint',
       clientFactory: () => client,
     });
     try {
@@ -43,7 +38,7 @@ describe('integration: !echo round trip', () => {
         content: '!echo integration round trip',
         guild: { id: 'guild-7' },
         channelId: 'channel-9',
-        channel: { id: 'channel-9', send },
+        channel: { id: 'channel-9', send, isThread: () => false },
       };
 
       // The stub message is a partial stand-in for the real Message object;

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import { childFor } from '../../src/logger/create-logger';
-import type { Config } from '../../src/shared/types';
+import { makeConfig } from '../helpers/config-fixture';
 import { makeStreamLogger } from '../helpers/stream-logger';
 
 // End-to-end secret-redaction path: a representative startup → echo-handle →
@@ -12,16 +12,7 @@ import { makeStreamLogger } from '../helpers/stream-logger';
 describe('redaction end-to-end', () => {
   it('startup → echo-handle → shutdown sequence emits zero log lines containing the literal DISCORD_TOKEN value', () => {
     const SECRET_TOKEN = 'SUPERSECRET-token-value-DO-NOT-LEAK-0xDEADBEEF';
-    const config: Config = {
-      discordToken: SECRET_TOKEN,
-      logLevel: 'debug',
-      commandPrefix: '!',
-      echoCommandName: 'echo',
-      echoMaxLength: 1900,
-      shutdownTimeoutMs: 5000,
-      healthHost: '127.0.0.1',
-      healthPort: 8081,
-    };
+    const config = makeConfig({ discordToken: SECRET_TOKEN, logLevel: 'debug' });
     const { logger, chunks } = makeStreamLogger('debug');
 
     // --- startup events ---
