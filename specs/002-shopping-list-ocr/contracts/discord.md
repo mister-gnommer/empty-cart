@@ -26,6 +26,8 @@ export function splitReply(text: string, limit?: number /* default 2000 */): str
 
 ## Behavioral contract
 
+0. **Ignored input.** Bot-authored messages and Discord system messages (`message.system`: joins, pins, boosts, thread notices) are dropped before any routing — no command, no hint, no OCR.
+   A thread counts as allowlisted when its own id or its parent channel's id is in `ocrChannelAllowlist`. A regular channel's `parentId` (its category) never counts.
 1. **Routing order** inside `onMessageCreate` (after the existing bot-author and
    `stopping` guards):
    1. Recognized command (`content` starts with `commandPrefix` and the command name
@@ -48,18 +50,29 @@ export function splitReply(text: string, limit?: number /* default 2000 */): str
    enforced at the transport, never by altering text bytes (FR-012, FR-009). Replies are
    sent to the originating channel ("same conversation", FR-011); the adapter never
    DMs, never cross-posts, and concurrent submissions in different channels are fully
-   independent (Edge Case "Concurrent users").
+   independent (Edge Case "Concurrent users"). After the last chunk the adapter logs
+   `list reply sent` (chunkCount, deliveredChunks, replyLength, no text) under the
+   submission's correlation id — `warn` when a chunk was not delivered — closing the
+   request-in → response-out audit trail (Constitution III). If the list handler throws,
+   the reply is `LIST_MESSAGES.serviceUnavailable`: a throw is a service-side failure,
+   and FR-014 requires one generic message for all of them.
+   Chunks that are whitespace-only are dropped before sending: Discord rejects them, and
+   they carry no list content.
+   The usage-hint reply is logged as `usage hint sent` (userId, channelId, delivered; never
+   the message content) under its own correlation id. `reply failed after retries` is
+   always logged through the request's correlation-bound logger (Constitution III).
 3. **Splitting (`splitReply`, FR-010).** `text.length ≤ limit` → `[text]`. Otherwise
    fill each chunk up to `limit` chars, preferring the LAST `'\n'` inside the window
    (split after it; a newline at window position 0 does not count as a line boundary);
-   when the window contains no usable line boundary, split mid-line at `limit - 1`, end
+   when the window contains no usable line boundary, split mid-line at `limit - 1`
+   (`limit - 2` when that would separate a surrogate pair; `limit` must be ≥ 4), end
    the chunk with `…` and start the next chunk with `…` (explicit continuation marker;
    transport-added content exempt from byte fidelity, FR-009/FR-010). Chunks are sent
    sequentially with `await`, in order (research R10: discord.js's REST queue honors
    rate-limit headers; realistic list splits of 2–5 chunks are far under any bucket).
    The fixed `LIST_MESSAGES` strings are all far under 2000 chars and never split.
 4. **Nothing else changes.** Connection lifecycle, reconnect correlation logging,
-   handler-throw canonical error reply, bounded retry, and shutdown semantics are exactly
+   the echo path's handler-throw canonical error reply, bounded retry, and shutdown semantics are exactly
    the 001 contract. The OCR path adds no new `discord.js` surface area beyond reading
    `message.attachments`.
 
@@ -72,7 +85,8 @@ export function splitReply(text: string, limit?: number /* default 2000 */): str
   - one 5000-char single line → chunks ≤ limit, every cut chunk except the last ends with
     `…`, every continuation chunk except the first starts with `…`, and stripping the
     markers reconstructs the original byte-for-byte;
-  - window whose only newline is at position 0 → treated as mid-line (marker path).
+  - window whose only newline is at position 0 → treated as mid-line (marker path);
+  - a mid-line cut never separates a surrogate pair; `limit < 4` → `RangeError`.
 - Routing contract tests (stubbed `Client` via the existing `clientFactory` seam,
   scripted `listSubmission`):
   - echo command in a non-allowlisted channel → echo reply, `listSubmission` never
@@ -86,6 +100,21 @@ export function splitReply(text: string, limit?: number /* default 2000 */): str
     called;
   - handler result longer than 2000 chars → multiple sends in order, each ≤ 2000, each
     with empty `allowedMentions` (asserted on the stubbed send);
-  - handler throws → the 001 canonical internal-error reply (existing behavior, now
-    covering the new path);
+  - list handler throws → `LIST_MESSAGES.serviceUnavailable` (never the exception text);
+  - `list reply sent` logged with chunk counts and correlation id; `warn` when a chunk
+    was not delivered;
   - every send in every scenario carries empty `allowedMentions` (FR-012).
+
+## Supersession notes
+
+- **2026-09-25** (post-implementation analysis): (a) a thrown list handler now gets the
+  generic service message instead of feature 001's internal-error reply, because spec
+  FR-014 takes precedence over this contract's earlier clause. (b) Added the
+  `list reply sent` delivery log. (c) `splitReply` no longer cuts inside a surrogate
+  pair, and its minimum limit is now 4.
+- **2026-09-25** (convergence): the usage-hint reply is now logged under its own
+  correlation id, and send failures are logged through the request's correlation-bound
+  logger instead of the root logger.
+- **2026-09-25** (PR review): system messages are ignored; threads inherit their parent
+  channel's allowlisting; whitespace-only chunks are never sent.
+

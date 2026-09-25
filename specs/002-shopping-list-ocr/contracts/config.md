@@ -25,7 +25,7 @@ type Config = Readonly<{
 | Env var | Field | Rule |
 |---|---|---|
 | `OCR_PROVIDER` | `ocrProvider` | Optional; default `'none'`. Any other non-empty value → `malformed`. |
-| `GCP_SA_KEY_PATH` | `gcpSaKeyPath` | **Required iff `OCR_PROVIDER=gcp-vision`** (cross-field rule): absent/empty then → `ConfigError('GCP_SA_KEY_PATH', 'missing')`. When provider is `none`, an absent value yields `null`; a present value is still validated non-empty and stored (operator may pre-stage it). File readability is NOT checked here (config is pure I/O-free) — the `google-vision` module checks at provider construction (startup). |
+| `GCP_SA_KEY_PATH` | `gcpSaKeyPath` | **Required iff `OCR_PROVIDER=gcp-vision`** (cross-field rule): absent/empty then → `ConfigError('GCP_SA_KEY_PATH', 'missing')`. When provider is `none`, an absent **or empty** value yields `null` (the sample env file ships it blank); a non-empty value is stored (operator may pre-stage it). File readability is NOT checked here (config is pure I/O-free) — the `google-vision` module checks at provider construction (startup). |
 | `OCR_LANGUAGE_HINTS` | `ocrLanguageHints` | Optional; default `[]`. Comma-separated; each non-empty entry must match `/^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/` (loose BCP-47, accepts the `en-t-i0-handwrit` handwriting form) → else `malformed`. `[]` = provider auto-detect. |
 | `OCR_CHANNEL_ALLOWLIST` | `ocrChannelAllowlist` | Optional; absent → `null` (process every channel the bot can see, FR-019). Comma-separated; each entry must match `/^\d{17,20}$/` (Discord snowflake) → else `malformed`. An explicitly empty value is `malformed` (an empty allowlist would silently disable OCR everywhere — almost certainly operator error). |
 
@@ -58,3 +58,9 @@ type Config = Readonly<{
   `malformed`; explicit empty string → `malformed`; absent → `null`.
 - Provider `none` + key file present → loads, stores the path (pre-staging case).
 - Regression: the full 001 config test suite passes unchanged.
+
+## Supersession notes
+
+- **2026-09-25** (post-implementation analysis): with provider `none`, an empty
+  `GCP_SA_KEY_PATH=` now yields `null` instead of `malformed`. This matches the code and
+  the blank sample env file.

@@ -30,7 +30,13 @@ export type UnavailableCause =
   | 'disabled';
 
 export type OcrProviderResult =
-  | { status: 'ok'; recognition: Recognition }
+  | {
+      status: 'ok';
+      recognition: Recognition;
+      // Provider self-check: its own whole-page text === recognition.text?
+      // Absent when the provider has no separate page text. Content-free, loggable.
+      fidelityCheck?: 'match' | 'mismatch';
+    }
   | { status: 'undecodable-image' }
   | { status: 'unavailable'; cause: UnavailableCause };
 
@@ -57,7 +63,11 @@ export function createDisabledProvider(): OcrProvider;
    `recognition.lines.map((l) => l.text).join('\n') === recognition.text`, except that a
    single trailing empty line produced by a terminal provider break MAY be dropped.
    Providers MUST NOT trim, normalize, sort, de-duplicate, or otherwise alter text
-   (FR-003; the joined-lines-equals-page-text rule is from spec §Assumptions).
+   (FR-003; the joined-lines-equals-page-text rule is from spec §Assumptions). A
+   provider whose `lines` are derived separately from the vendor's page text SHOULD put
+   the vendor's page text in `recognition.text`, and SHOULD report `fidelityCheck`. On
+   `mismatch` the invariant above does not hold: `text` stays authoritative for the
+   reply, and the lines are best-effort metadata.
 3. **Handoff metadata.** Every line carries `confidence` and `boundingBox` (FR-005).
    v1 consumers use only `recognition.text`; the metadata exists for the future AI flow.
 4. **No retention.** The provider MUST NOT retain image bytes or recognition output after
@@ -67,7 +77,8 @@ export function createDisabledProvider(): OcrProvider;
    underlying transport reports it differently); it MUST NOT wait past the budget.
 6. **`createDisabledProvider()`** returns a provider with `id: 'disabled'` whose every
    call resolves `{ status: 'unavailable', cause: 'disabled' }` without any I/O — this is
-   how a disabled configuration still answers every image submission (FR-025).
+   how a disabled configuration still answers every image submission that passes the
+   input checks (FR-025).
 7. **Swap-by-configuration.** Adding a provider = a new sibling module implementing
    `OcrProvider` plus one config enum value plus one wiring branch in `lifecycle`. No edit
    to `shopping-list`, `image`, or `discord` (FR-006, SC-004).
@@ -86,3 +97,13 @@ export function createDisabledProvider(): OcrProvider;
 - Fidelity invariant property check: for a table of crafted `Recognition` fixtures,
   `lines.join('\n') === text` holds (this guards the fixtures the google-vision mapper
   tests rely on).
+
+## Supersession notes
+
+- **2026-09-25** (post-implementation analysis): added the optional `fidelityCheck` to the
+  `ok` arm. The fidelity invariant had only been checked against hand-crafted fixtures,
+  never against a real vendor response.
+- **2026-09-25** (PR review): `recognition.text` is the vendor's page text when
+  available. The fidelity invariant is relaxed to "holds unless `fidelityCheck` is
+  `mismatch`".
+

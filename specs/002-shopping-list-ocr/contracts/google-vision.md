@@ -50,12 +50,16 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
      `code`/`message` shape, so a decode failure becomes `undecodable-image` (Q37);
    - otherwise `responses[0].fullTextAnnotation` is passed to `toRecognition`; a missing or
      empty annotation resolves `ok` with the empty recognition — the "no readable text"
-     decision belongs to the orchestrator, not the provider.
+     decision belongs to the orchestrator, not the provider;
+   - when the annotation carries its own `text`, `recognition.text` IS that provider
+     text (what the user receives), `recognition.lines` comes from the reconstruction,
+     and the result reports `fidelityCheck: 'match' | 'mismatch'` comparing the two.
+     Without a `text` field, the reconstruction supplies both and no check is reported.
 5. **Error mapping (`mapGoogleError`, research R6).** Applied to both a thrown `GoogleError`
    and an in-band `responses[0].error`. gRPC/status `code`:
    `3` + message containing `Bad image data` → `undecodable-image`;
    `4` → `unavailable`/`deadline-exceeded`; `7` → `unavailable`/`unauthorized`;
-   `8` → `unavailable`/`quota-exceeded`; `14` → `unavailable`/`unreachable`;
+   `8` → `unavailable`/`quota-exhausted`; `14` → `unavailable`/`unreachable`;
    `16` → `unavailable`/`unauthorized`; any other code or non-GoogleError →
    `unavailable`/`provider-error`. The numeric code and `reason` (when present) are
    carried on the result's log context; secrets never are (key path is the most sensitive
@@ -83,5 +87,20 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
 - Request-shape test with a stubbed `ImageAnnotatorClient` (constructor seam): asserts
   feature type, inline bytes pass-through, languageHints forwarding (set vs omitted), and
   that call options carry `retry: null` and the forwarded `timeout`.
-- NO test contacts the real Vision API; live behavior is validated in quickstart's manual
-  smoke run.
+- Fidelity self-check: provider text equal to the reconstruction → `match`; different →
+  `mismatch` with the provider's text returned and the reconstructed lines kept; no
+  provider text → reconstruction returned, no check.
+- NO test contacts the real Vision API. Live behavior, including a recorded real-response
+  fixture for the reconstruction, is validated after merge (see the post-merge
+  validation issue).
+
+## Supersession notes
+
+- **2026-09-25** (post-implementation analysis): added the `fidelityCheck` self-check
+  (clause 4). Fixed the `quota-exceeded` → `quota-exhausted` naming drift in clause 5 to
+  match the `ocr` contract and the code.
+- **2026-09-25** (PR review): on `mismatch` the provider's own page text is returned, not
+  the reconstruction. This supersedes the earlier clause-4 wording and research R3's
+  choice of the reconstruction as reply text. The reconstruction now only supplies
+  per-line metadata.
+

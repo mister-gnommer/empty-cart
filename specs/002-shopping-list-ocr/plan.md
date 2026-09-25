@@ -45,7 +45,7 @@ in `dist/` (unchanged from 001).
 persisted (FR-018); logs carry ids/sizes only (FR-017, SC-005).
 
 **Testing**: Vitest, three tiers under `tests/` as in 001 — unit (pure mappers: line
-reconstruction, error mapping, sniff, splitReply, config), contract (stub-provider swap,
+reconstruction, error mapping, sniff, splitReply, config, messages), contract (stub-provider swap,
 orchestrator evaluation order, adapter routing), integration (message-in → reply-out via
 the stubbed Discord client + stub provider, incl. the SC-005 log scan). No test contacts
 the real Vision API or Discord gateway.
@@ -61,8 +61,9 @@ in place.
   manual live smoke validation (quickstart §3 #1); automated tests assert correctness
   and the 25 s budget, not wall-clock provider latency.
 - Hard per-submission budget of 25 s shared across all images (FR-020) — enforced
-  client-side via per-call gax `timeout` with retries disabled (research R7); automated
-  via the orchestrator's `now()` seam.
+  client-side via per-call gax `timeout` with retries disabled (research R7), plus an
+  orchestrator abort timer that cancels the download and abandons any outstanding callee
+  (added 2026-09-25 after analysis); automated via the `now()` seam and fake timers.
 - >2000-char replies delivered completely and in order (SC-007) — automated
   splitReply + adapter contract tests.
 
@@ -91,7 +92,7 @@ v1 (FR-005); the six deferred concerns ship as GitHub issues, not code (FR-023/S
 | **Constraint: Language policy** | TypeScript throughout; no deviation. | — |
 | **Constraint: External dependencies abstracted** | Vision sits behind the `src/ocr/` provider contract; swap = new module + config value + one wiring branch; the stub provider proves it (SC-004). | `contracts/ocr.md` clause 7; research R12 |
 | **Constraint: Graceful degradation** | Every failure class maps to a defined user message; disabled provider still answers every image (FR-025); budget overruns abandon client-side and keep the bot responsive (FR-020). | `contracts/shopping-list.md`; research R6/R7 |
-| **Workflow: Validate on VPS** | Live smoke scenarios incl. failure-injection run against the real deployment before "done". | `quickstart.md` §3, §5 |
+| **Workflow: Validate on VPS** | Live smoke scenarios incl. failure-injection run against the real deployment before "done" — performed after merge, tracked as a GitHub issue rather than branch tasks (2026-09-25). | `quickstart.md` §3, §5 |
 
 **Gate verdict (pre-Phase 0)**: PASS — no unjustified violations.
 
@@ -155,8 +156,7 @@ tests/
 ├── unit/                 # to-recognition, map-google-error, sniff-format, split-reply,
 │                         #   config (new fields), messages
 ├── contract/             # ocr (stub conformance), google-vision (request shape via
-│                         #   stubbed client), image, shopping-list, discord routing,
-│                         #   config
+│                         #   stubbed client), image, shopping-list, discord routing
 ├── integration/          # full flow: message-in → reply-out vs stub provider; failure
 │                         #   classes; multi-image; concurrent users; long text; log scan
 └── helpers/              # + stub-ocr-provider.ts, scripted fetch helpers
