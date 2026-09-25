@@ -17,6 +17,18 @@ export type Config = Readonly<{
   shutdownTimeoutMs: number;
   healthHost: string;
   healthPort: number;
+  /** OCR backend; 'none' disables recognition (image posts still get a reply, never silence). */
+  ocrProvider: 'gcp-vision' | 'none';
+  /**
+   * Path to the Google Cloud service-account JSON key; null when unset. The path
+   * itself is loggable — the key file's contents must never be read into logs.
+   * Required (non-empty) when ocrProvider is 'gcp-vision'.
+   */
+  gcpSaKeyPath: string | null;
+  /** Loose BCP-47 hints forwarded to the provider; empty = provider auto-detects. */
+  ocrLanguageHints: readonly string[];
+  /** Channel snowflakes in which photos are processed; null = every visible channel. */
+  ocrChannelAllowlist: readonly string[] | null;
 }>;
 
 export type BotState = {

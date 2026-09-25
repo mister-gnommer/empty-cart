@@ -1,0 +1,5 @@
+- `5f566a1b-a0c5-41d2-8098-10ffdb11db33` — 2026-09-24 — Implement phase 4 of feature 002 (shopping-list OCR)
+- `8d986db9-0e82-4d72-80a5-297393f556df` — 2026-09-24 — Implement phase 5 of feature 002 (shopping-list OCR)
+- `a6a484bb-c65b-4c1c-8a6a-af48f978c200` — 2026-09-24 — Implement phase 6 of feature 002 (shopping-list OCR)
+- `4277df12-a953-4ab0-a6ce-6476cdef8b94` — 2026-09-25 — Run speckit-analyze on feature 002 and compare findings against implemented code
+- `7774a914-1947-4b99-bf57-22b9ed741acb` — 2026-09-25 — Pragmatic code review of PR #10 (shopping-list OCR)
