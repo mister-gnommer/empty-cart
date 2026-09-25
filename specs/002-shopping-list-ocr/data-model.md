@@ -64,29 +64,21 @@ One image attachment belonging to a submission.
 
 ## Entity 3 — Recognized List Text
 
-The provider-agnostic recognition output for **one** image, defined at the FR-005 handoff
-boundary. Owned by `src/ocr/`.
+The provider-agnostic recognition output for **one** image (FR-005): the provider's
+whole-page text, carried as `text` on the `ok` result arm (Entity 5). Owned by `src/ocr/`.
 
-```ts
-type RecognizedLine = {
-  text: string;              // the line as the provider produced it
-  confidence: number;        // [0,1], char-weighted mean of word confidences (R4)
-  boundingBox: { x: number; y: number; width: number; height: number }; // px, word-box union (R5)
-};
+| Field | Type | Notes |
+|---|---|---|
+| `text` | string | whole-page text, provider's own line-break semantics, never altered; `''` when the provider found none |
 
-type Recognition = {
-  text: string;              // whole-page text, provider's own break semantics
-  lines: RecognizedLine[];   // ordered
-};
-```
-
-**Invariant**: `lines.map(l => l.text).join('\n') === text`, except that a single trailing
-empty line produced by a terminal break is dropped (R3). Only `text` crosses into
-user-facing output in v1; `lines` (confidence/position) is the future AI handoff.
+No per-line or per-word metadata exists in v1. Word-level detail with per-word
+confidence is added by feature 003 (AI list interpretation), designed with its consumer.
 
 **Multi-image presentation**: the user-facing reply body is the per-image `text` values in
-attachment order, joined with a single `'\n'` between images. No trimming, normalization,
-or reordering anywhere (FR-003/FR-004; spec §Assumptions "List fidelity over accuracy").
+attachment order, skipping blank (empty or whitespace-only) pages, joined with a single
+`'\n'` between images. Only an all-blank submission yields the no-readable-text message.
+No trimming, normalization, or reordering anywhere (FR-003/FR-004/FR-013; spec
+§Assumptions "List fidelity over accuracy").
 
 ## Entity 4 — OCR Provider
 
@@ -116,9 +108,12 @@ One recognition attempt against one List Image.
 
 ```ts
 type OcrProviderResult =
-  | { status: 'ok'; recognition: Recognition }
-  | { status: 'undecodable-image' }                       // provider could not decode bytes
-  | { status: 'unavailable'; cause: UnavailableCause };   // all service-side failures
+  | { status: 'ok'; text: string }                        // Recognized List Text
+  | { status: 'undecodable-image'; logContext?: ProviderLogContext } // provider could not decode bytes
+  | { status: 'unavailable'; cause: UnavailableCause; logContext?: ProviderLogContext }; // all service-side failures
+
+// Vendor diagnostics for the operator log only (see the ocr contract).
+type ProviderLogContext = Readonly<Record<string, string | number | null>>;
 
 type UnavailableCause =
   | 'unreachable' | 'unauthorized' | 'quota-exhausted'
@@ -141,8 +136,8 @@ Environment-derived; additions to the existing `Config` type:
 
 | Env var | Config field | Required | Validation |
 |---|---|---|---|
-| `OCR_PROVIDER` | `ocrProvider: 'gcp-vision' \| 'none'` | no (default `'none'`) | enum |
-| `GCP_SA_KEY_PATH` | `gcpSaKeyPath: string` | iff provider = `gcp-vision` (cross-field rule) | non-empty; readability checked at provider construction (startup) |
+| `OCR_PROVIDER` | `ocrProvider.kind: 'gcp-vision' \| 'none'` | no (default `'none'`) | enum |
+| `GCP_SA_KEY_PATH` | `ocrProvider.keyFilePath: string` (gcp-vision arm only) | iff provider = `gcp-vision` (cross-field rule) | non-empty; readability checked at provider construction (startup) |
 | `OCR_LANGUAGE_HINTS` | `ocrLanguageHints: readonly string[]` | no (default `[]` = auto-detect) | comma-separated; each entry loosely BCP-47 (`/^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/`, accepts `en-t-i0-handwrit`) |
 | `OCR_CHANNEL_ALLOWLIST` | `ocrChannelAllowlist: readonly string[] \| null` | no (`null` = every channel processed) | comma-separated snowflakes (`/^\d{17,20}$/`) |
 
@@ -169,7 +164,7 @@ Shopping-List Submission 1──* List Image            (ordered, all-or-nothing
 Shopping-List Submission 1──* OCR Request/Result     (one per image, sequential)
 OCR Request/Result      *──1 OCR Provider            (via contract only)
 OCR Provider            1──1 Provider Configuration  (selected/wired at startup)
-OCR Request/Result ok   1──1 Recognized List Text    (transient; only text reaches the user)
+OCR Request/Result ok   1──1 Recognized List Text    (transient; reaches the user unchanged)
 ```
 
 ## Multi-user isolation note
@@ -179,3 +174,14 @@ scoped to one submission (one user, one channel); the only shared mutable state 
 busy-guard `Map<userId, correlationId>`, which is write-only-until-release per key and
 never exposes another user's data. Logs carry ids and sizes only — never image bytes,
 recognized text, or credentials (FR-017, SC-005).
+
+## Supersession notes
+
+- **2026-09-27** (PR review): Entity 3 is the provider's page text only. `RecognizedLine`,
+  `Recognition`, and the joined-lines invariant are removed, and the `ok` arm of
+  Entity 5 carries `text` directly. Why: the page text already has the line breaks and
+  is what the user receives; per-line metadata had no v1 consumer, and per-word
+  confidence (feature 003) is the shape the AI step needs.
+- **2026-09-27** (analysis): "Multi-image presentation" now skips blank pages. It had
+  missed the 2026-09-25 spec FR-013 clarification that the shopping-list contract and
+  the code already follow.

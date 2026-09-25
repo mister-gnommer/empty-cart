@@ -35,6 +35,7 @@ export function createListSubmissionHandler(deps: {
   provider: OcrProvider;
   fetchImage: typeof fetchAndValidateImage;
   languageHints: readonly string[];
+  logger: Logger; // from src/logger — never pino directly
   now?: () => number; // test seam; production = Date.now
 }): ListSubmissionHandler;
 
@@ -66,18 +67,24 @@ directly; the logger type comes from `src/logger`).
    2. *Busy guard*: if `input.userId` already has an in-flight submission → reply `busy`
       and stop. Otherwise record `Map[userId] = correlationId`.
    3. *Sequential processing under one shared budget*: `deadline = now() +
-      SUBMISSION_BUDGET_MS` at guard acquisition. For each attachment in order:
+      SUBMISSION_BUDGET_MS` at guard acquisition, together with a hard budget timer
+      (an `AbortController` aborted after `SUBMISSION_BUDGET_MS`, cleared in `finally`).
+      The timer's signal is passed to `fetchImage`, and both the download and the
+      provider call are raced against it: when it fires, the outstanding callee is
+      abandoned (not awaited), the `cancelled` transition is logged, and the reply is
+      `serviceUnavailable` — so a callee that never settles can't hold the busy
+      guard. For each attachment in order:
       `fetchImage` → map `too-large`/`unsupported-format`/`unretrievable` to their
       replies and abort the whole submission (all-or-nothing, FR-004); then
       `provider.recognize` with `timeoutMs = deadline - now()` (≤ 0 → treat as
       deadline-exceeded). Any non-`ok` provider result aborts the whole submission:
       `undecodable-image` → `unsupportedFormat`; any `unavailable` → `serviceUnavailable`
       with the cause + provider id logged.
-   4. *Success assembly*: the reply text is the per-image `recognition.text` values in
-      attachment order joined with a single `'\n'` between images — no trimming,
-      reordering, merging, or normalization anywhere (FR-003/FR-004/FR-009).
-   5. *Empty check*: if the assembled text is empty or whitespace-only → reply
-      `noReadableText` (FR-013). This check applies to the combined text, so a blank
+   4. *Success assembly*: the reply text is the per-image page `text` values in
+      attachment order, **skipping blank (empty or whitespace-only) pages**, joined with a
+      single `'\n'` between images. Nothing else is trimmed, reordered, merged, or
+      normalized (FR-003/FR-004/FR-009/FR-013).
+   5. *Empty check*: if every page was blank → reply `noReadableText` (FR-013). A blank
       page among recognized pages never triggers it.
    6. `finally`: the busy-guard entry is ALWAYS released, including on throw.
 2. **Unstructured outcomes never leak.** The only user-facing strings are the
@@ -89,9 +96,13 @@ directly; the logger type comes from `src/logger`).
    (FR-016); the busy map is keyed per user and is the ONLY shared mutable state.
 4. **Logging (FR-017, SC-005).** One structured line per transition:
    `received` (userId, channelId, attachmentCount, reportedSizes), `submitted` (per
-   image: position, sizeBytes, format), `succeeded` (imageCount, elapsedMs),
+   image: position, sizeBytes, format), `image recognized` (per image: position,
+   textLength — the page text's character count, never the text),
+   `succeeded` (imageCount, elapsedMs),
    `failed` (reason class: too-large / unsupported / unretrievable / provider-cause),
-   `cancelled` (elapsedMs), `rejected-busy`. Logs NEVER contain image bytes, recognized
+   `cancelled` (elapsedMs), `rejected-busy`. A provider failure or provider-side deadline
+   also carries `providerId` and, when the result has one, `providerLogContext` (nested,
+   so vendor keys never shadow the handler's own fields). Logs NEVER contain image bytes, recognized
    text, attachment urls beyond host, or credential material.
 5. **No retention.** After the reply is computed, the handler drops every reference to
    bytes and recognition output (FR-018).
@@ -108,7 +119,8 @@ vendor SDKs.
   configured language hints, and a positive `timeoutMs`; reply text equals the stub's
   page text byte-for-byte.
 - Multi-image: three images → provider called sequentially in attachment order (assert
-  call order); reply = the three page texts joined by `'\n'` in order; a failure on image
+  call order); reply = the three page texts joined by `'\n'` in order; a blank page
+  between recognized pages is skipped (no stray empty line); a failure on image
   2 aborts: image 3 is never downloaded nor recognized and exactly one failure message is
   produced (all-or-nothing).
 - Local checks before guard: oversize `reportedSize` on attachment 2 of 2 → `imageTooLarge`
@@ -125,9 +137,32 @@ vendor SDKs.
   (no cross-talk; asserted via per-user stub scripting).
 - Budget: `now()` seam advanced so the deadline passes mid-submission → provider receives
   `timeoutMs <= 0` path → `serviceUnavailable`, guard released, handler resolves (no
-  stuck promise); elapsed-log assertion for `cancelled`.
-- Disabled provider: every image submission → `serviceUnavailable` (FR-025), still
-  replied (never silent).
+  stuck promise); elapsed-log assertion for `cancelled`. A download or provider call that
+  never settles → `serviceUnavailable` once the budget timer fires (fake timers), the
+  download's abort signal fires, guard released; no budget timer outlives a submission.
+- Disabled provider: every image submission that passes the input checks →
+  `serviceUnavailable` (FR-025), still replied (never silent); an input problem (oversize,
+  unsupported metadata, bytes failing the format sniff) keeps its distinct message.
+- `image recognized` carries `textLength`, never the text.
 - Logging: spy logger receives the transition events with correlation id and NO text/byte
   fields (scan log values for fixture text — SC-005 pattern, mirrored from 001's
   redaction test).
+
+## Supersession notes
+
+- **2026-09-25** (post-implementation analysis): (a) the budget is now enforced by a hard
+  abort timer, not only by the `now()` checks between steps. The download previously had
+  no bound, and a stalled one held the busy guard forever. (b) Blank pages are skipped
+  in multi-image assembly, as spec FR-013 requires; this contract previously joined them
+  in. (c) The disabled provider answers only submissions that pass the input checks, per
+  the spec FR-025 amendment. (d) Added the per-image `image recognized` log line.
+- **2026-09-25** (PR review): when the budget is already spent as a callee starts, the
+  abandoned promise still gets a rejection handler, so a late failure can never surface
+  as an unhandled rejection.
+- **2026-09-27** (PR review): the `image recognized` log drops `lineCount` and
+  `fidelityCheck` and gains `textLength`; the `warn`-on-`mismatch` path is removed.
+  Success assembly reads the result's page `text` directly. Why: the provider result is
+  now text only, so there are no lines to count and no reconstruction to drift.
+- **2026-09-28** (PR review): provider `failed`/`cancelled` lines carry the result's
+  `logContext` as `providerLogContext`. Why: the specific Vision code never reached the
+  log, so a catch-all `provider-error` could not be diagnosed.

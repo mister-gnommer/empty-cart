@@ -1,6 +1,6 @@
 # Contract — `google-vision`
 
-**Module path**: `src/google-vision/`
+**Module path**: `src/ocr/google-vision/`
 **Depends on**: `src/ocr/` (contract), `src/shared/types`; the ONLY module permitted to
 import `@google-cloud/vision` (enforced by `biome.json` `noRestrictedImports`, research R12)
 **Depended on by**: `lifecycle` (wiring) — nothing else may know it exists
@@ -11,8 +11,7 @@ import `@google-cloud/vision` (enforced by `biome.json` `noRestrictedImports`, r
 ```typescript
 export function createGoogleVisionProvider(deps: { keyFilePath: string }): OcrProvider;
 
-// Pure mappers, exported for unit tests (no client needed):
-export function toRecognition(annotation: FullTextAnnotationLike): Recognition;
+// Pure mapper, exported for unit tests (no client needed):
 export function mapGoogleError(err: unknown): OcrProviderResult;
 ```
 
@@ -32,15 +31,10 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
    `{ timeout: req.timeoutMs, retry: null }` — the client default (retries on
    `DEADLINE_EXCEEDED`/`UNAVAILABLE` with a 600 s total timeout) is disabled because it
    would destroy the 25 s submission budget (research R7).
-3. **Line reconstruction (`toRecognition`, research R3).** Walk
-   `pages → blocks → paragraphs → words → symbols`; append each symbol's text, then the
-   translation of its `property.detectedBreak` (honoring `isPrefix`):
-   `SPACE`/`SURE_SPACE` → `' '`, `EOL_SURE_SPACE`/`LINE_BREAK` → `'\n'`,
-   `HYPHEN`/`UNKNOWN`/absent → `''`. Lines = the reconstructed string split on `'\n'`;
-   drop exactly one trailing empty line if present. Per-line `confidence` = char-weighted
-   mean of constituent word confidences (R4); per-line `boundingBox` = axis-aligned union
-   of constituent word `boundingBox.vertices` in page pixel space (R5). The `ocr`
-   contract fidelity invariant (`lines.join('\n') === text`) MUST hold.
+3. **Page text only.** The provider uses `fullTextAnnotation.text` as-is. The
+   annotation's structure tree (`pages → … → symbols`, `detectedBreak`, confidences,
+   bounding boxes) is not read in v1; word-level confidence from it is planned for
+   feature 003.
 4. **Response handling.** `documentTextDetection` resolves to a `BatchAnnotateImagesResponse`
    (the library's own type); the provider reads the single entry at `responses[0]`. No
    exhaustive failure matrix is invented — the library types define the surface, and only
@@ -48,14 +42,14 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
    - `responses[0].error` present (Vision reports per-image failures in-band on a 200) →
      mapped through `mapGoogleError`; the `google.rpc.Status` carries the same numeric
      `code`/`message` shape, so a decode failure becomes `undecodable-image` (Q37);
-   - otherwise `responses[0].fullTextAnnotation` is passed to `toRecognition`; a missing or
-     empty annotation resolves `ok` with the empty recognition — the "no readable text"
+   - otherwise the result is `{ status: 'ok', text: responses[0].fullTextAnnotation?.text ?? '' }`;
+     a missing annotation or text resolves `ok` with `''` — the "no readable text"
      decision belongs to the orchestrator, not the provider.
 5. **Error mapping (`mapGoogleError`, research R6).** Applied to both a thrown `GoogleError`
    and an in-band `responses[0].error`. gRPC/status `code`:
    `3` + message containing `Bad image data` → `undecodable-image`;
    `4` → `unavailable`/`deadline-exceeded`; `7` → `unavailable`/`unauthorized`;
-   `8` → `unavailable`/`quota-exceeded`; `14` → `unavailable`/`unreachable`;
+   `8` → `unavailable`/`quota-exhausted`; `14` → `unavailable`/`unreachable`;
    `16` → `unavailable`/`unauthorized`; any other code or non-GoogleError →
    `unavailable`/`provider-error`. The numeric code and `reason` (when present) are
    carried on the result's log context; secrets never are (key path is the most sensitive
@@ -64,15 +58,6 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
 
 ## Test obligations (TDD — written first, red, then green)
 
-- `toRecognition` unit tests over crafted annotation fixtures (no network, no client):
-  - multi-paragraph input with `LINE_BREAK` and `EOL_SURE_SPACE` → ordered lines, and
-    `lines.join('\n')` equals the fixture's `text` field byte-for-byte (fidelity
-    invariant);
-  - `SURE_SPACE` mid-line → single space, no line split;
-  - terminal break → trailing empty line dropped;
-  - word confidences → char-weighted line confidence (hand-computed expectation);
-  - word boxes → expected union envelope;
-  - empty annotation → `ok`-shaped empty recognition.
 - `mapGoogleError` table tests: one case per row of the mapping table in clause 5,
   including a non-Error throw and a `code: 3` without the `Bad image data` signature
   (conservative `provider-error`).
@@ -83,5 +68,24 @@ export function mapGoogleError(err: unknown): OcrProviderResult;
 - Request-shape test with a stubbed `ImageAnnotatorClient` (constructor seam): asserts
   feature type, inline bytes pass-through, languageHints forwarding (set vs omitted), and
   that call options carry `retry: null` and the forwarded `timeout`.
-- NO test contacts the real Vision API; live behavior is validated in quickstart's manual
-  smoke run.
+- Response mapping: the annotation's `text` is returned byte-for-byte; a missing
+  annotation or `text` → `ok` with `''`; an in-band `error` wins over an annotation that
+  is also present.
+- NO test contacts the real Vision API. Live behavior is validated after merge (see the
+  post-merge validation issue).
+
+## Supersession notes
+
+- **2026-09-25** (post-implementation analysis): added the `fidelityCheck` self-check
+  (clause 4). Fixed the `quota-exceeded` → `quota-exhausted` naming drift in clause 5 to
+  match the `ocr` contract and the code.
+- **2026-09-25** (PR review): on `mismatch` the provider's own page text is returned, not
+  the reconstruction. This supersedes the earlier clause-4 wording and research R3's
+  choice of the reconstruction as reply text. The reconstruction now only supplies
+  per-line metadata.
+- **2026-09-27** (PR review): the provider returns `fullTextAnnotation.text ?? ''` and no
+  longer walks the structure tree. `toRecognition`, the `detectedBreak` line building,
+  per-line confidence and box, and the `fidelityCheck` comparison are removed (clauses 3
+  and 4), along with their tests. The in-band error check still comes first. Why: the
+  reconstruction only rebuilt the page text to attach per-line metadata that nothing in
+  v1 consumes; per-word confidence for the AI step is planned for feature 003.
