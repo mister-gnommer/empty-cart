@@ -20,9 +20,12 @@ What each tier proves (details: `contracts/*.md` "Test obligations"):
 
 | Tier | Proves |
 |---|---|
-| `tests/unit/` | line reconstruction fidelity (`lines.join('\n') === text`, per `contracts/google-vision.md`), per-line confidence/position math, gRPC error→taxonomy mapping, magic-byte sniffing, `splitReply` chunking/marker reconstruction, config parsing incl. the provider/key-file cross-field rule |
+| `tests/unit/` | gRPC error→taxonomy mapping, magic-byte sniffing, `splitReply` chunking/marker reconstruction, config parsing incl. the provider/key-file cross-field rule |
 | `tests/contract/` | stub-provider swap (the full user-facing flow runs with zero external calls — SC-004), orchestrator evaluation order (local checks → busy → sequential all-or-nothing), busy guard, 25 s budget via the `now()` seam, adapter routing/allowlist/usage-hint, empty `allowedMentions` on every send |
 | `tests/integration/` | end-to-end message-in → reply-out through the stubbed Discord client and stub provider: happy path, every failure class (SC-003), multi-image order, concurrent users (SC-006), >2000-char delivery in order (SC-007), and a post-run log scan asserting no recognized text, image bytes, or key material in logs (SC-005) |
+
+> 2026-09-27 (PR review): the unit tier no longer covers line reconstruction or per-line
+> confidence/position; both were removed with the text-only recognition result.
 
 Red-first rule (Constitution I): every contract's test obligations are written and shown
 failing before the module is implemented.
@@ -45,6 +48,8 @@ failing before the module is implemented.
 
 ## 3. Live smoke scenarios (manual, real Discord + real Vision)
 
+> Run after merge. Progress is tracked in GitHub issue #8, not in the branch's `tasks.md`.
+
 Run each and compare against the expected outcome; all replies must arrive in the same
 channel, and recognized text must match the photo's lines in order (SC-002).
 
@@ -55,14 +60,14 @@ channel, and recognized text must match the photo's lines in order (SC-002).
 | 3 | Post a blank/unreadable photo | "I couldn't read any text — can you try a different photo?" |
 | 4 | Send a PDF (or GIF) as file | Unsupported-format message; logs show no provider call was made |
 | 5 | Send an image > 7 MB (or renamed to exceed) | Too-large message; no provider call in logs |
-| 6 | Send two list photos in ONE message | Both pages' text, in attachment order, in one reply flow |
+| 6 | Send two list photos in ONE message | Both pages' text, in attachment order, in one reply flow (a blank page adds no empty line) |
 | 7 | Send a photo, then immediately a second photo | Second gets the busy message; first completes normally |
 | 8 | Have a second user post a photo in another channel during your submission | Both get their own text; neither sees the other's (SC-006) |
 | 9 | Type plain text (no image) in a processed channel | Usage hint naming the `!help` command |
 | 10 | `!echo hello` anywhere (incl. non-allowlisted channel) | Echo works; no usage hint added |
 | 11 | Temporarily revoke the service account / disable the Vision API, send a photo | The generic "Service is not available…" message; logs carry the specific cause + correlation id; bot stays responsive |
 | 12 | Long list producing > 2000 chars | Multiple messages in order; a mid-line cut shows the `…` continuation marker |
-| 13 | `OCR_PROVIDER=none`, send a photo | Generic service-unavailable message — never silence |
+| 13 | `OCR_PROVIDER=none`, send a photo | Generic service-unavailable message — never silence (an oversized/unsupported file still gets its input-problem message) |
 
 Scenario 11 restores credentials afterwards. Scenario outcomes are cross-checked against
 `journalctl -u empty-cart` — every submission shows received/submitted/succeeded|failed
@@ -78,6 +83,8 @@ first task in `tasks.md` (Phase 2), per the decision to track them up front rath
 the end.
 
 ## 5. VPS validation (Constitution workflow §7)
+
+> Run after merge. Progress is tracked in GitHub issue #8.
 
 The feature is not "done" until scenarios 1–3 and 11 have been exercised against the real
 systemd-supervised VPS deployment (`docs/deployment.md`), not only locally.
