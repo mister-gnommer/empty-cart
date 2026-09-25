@@ -11,6 +11,7 @@ unsupported/corrupt, oversize, permission-less download)
 
 ```typescript
 export const MAX_IMAGE_BYTES = 7 * 1024 * 1024; // hardcoded 7 MB (spec §Assumptions)
+export const ACCEPTED_CONTENT_TYPES: ReadonlySet<string>; // image/jpeg|png|webp — reused by the orchestrator's metadata pre-check
 
 export type ImageFormat = 'jpeg' | 'png' | 'webp';
 
@@ -18,6 +19,7 @@ export type ImageFetchInput = {
   url: string;
   reportedSize: number | null;          // Discord-reported bytes
   reportedContentType: string | null;   // extension-derived hint, untrusted
+  signal?: AbortSignal;                 // caller's submission budget
 };
 
 export type ImageFetchResult =
@@ -56,8 +58,11 @@ export function sniffFormat(bytes: Uint8Array): ImageFormat | null; // pure
    copied, stored, or logged; failures log url host + reported size only, never bytes
    (FR-017, SC-005).
 4. **Timeouts.** The download runs under the caller's shared submission budget; this
-   module exposes no independent timeout knob (the orchestrator aborts via the budget —
-   an over-budget download manifests as the submission's `cancelled`/generic path).
+   module exposes no independent timeout knob. The caller's `signal` is forwarded to
+   `fetchImpl` and checked before every body chunk. Once aborted, the reader is
+   cancelled and the result is `unretrievable`. The orchestrator also stops awaiting at
+   the abort, so an over-budget download ends as the submission's `cancelled`/generic
+   path.
 
 ## Test obligations (TDD — written first, red, then green)
 
@@ -74,4 +79,13 @@ export function sniffFormat(bytes: Uint8Array): ImageFormat | null; // pure
     buffered);
   - ok body with PNG magic but contentType claiming `image/webp` → `ok` with format
     `png` (bytes beat the hint);
-  - ok body under cap with JPEG magic → `ok`, `sizeBytes` equals actual length.
+  - ok body under cap with JPEG magic → `ok`, `sizeBytes` equals actual length;
+  - the caller's `signal` is forwarded to `fetchImpl`; an already-aborted signal with a
+    fetch that ignores it → reader cancelled, `unretrievable`.
+
+## Supersession notes
+
+- **2026-09-25** (post-implementation analysis): added the `signal` input and the
+  per-chunk abort check. Clause 4 had promised a budget abort that the code did not
+  implement. `ACCEPTED_CONTENT_TYPES` is exported so the orchestrator doesn't keep its
+  own copy.

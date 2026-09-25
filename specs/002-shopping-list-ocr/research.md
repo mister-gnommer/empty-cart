@@ -70,6 +70,10 @@ never logs key material itself.
 
 ## R3 — Reconstructing ordered lines from the Vision response
 
+> **Superseded 2026-09-27** (PR review): the provider now returns
+> `fullTextAnnotation.text` as-is and reconstructs no lines; nothing in v1 consumed the
+> per-line metadata. Word-level detail is planned for feature 003. Kept as history.
+
 **Decision**: Lines are reconstructed by walking
 `fullTextAnnotation.pages → blocks → paragraphs → words → symbols`, appending each
 symbol's text and translating its trailing `property.detectedBreak.type`:
@@ -107,6 +111,10 @@ cloud.google.com/vision/docs/release-notes (2023-12-05 HYPHEN behavior change).
 
 ## R4 — Per-line confidence
 
+> **Superseded 2026-09-27** (PR review): per-line confidence is removed. An averaged line
+> score hides the one uncertain word that matters; per-word confidence is planned for
+> feature 003. Kept as history.
+
 **Decision**: Line confidence = character-weighted mean of the constituent word
 confidences (equivalently, the mean of symbol confidences) in the provider's [0,1] range.
 Lines with no confidence-bearing words report `0`.
@@ -128,6 +136,10 @@ for the future AI consumer only (FR-005); v1 user output never shows it.
 ---
 
 ## R5 — Per-line position metadata
+
+> **Superseded 2026-09-27** (PR review): per-line bounding boxes are removed with the line
+> reconstruction (no v1 consumer); any position data is designed with feature 003. Kept
+> as history.
 
 **Decision**: Line position = axis-aligned envelope (min x/y, max x/y) of the constituent
 words' `boundingBox.vertices` in the page's pixel coordinate space, stored as
@@ -364,12 +376,12 @@ submission is rejected, never queued).
 ## R12 — Module boundaries & import enforcement
 
 **Decision**: New modules mirror the 001 layout, one contract per module: `src/ocr/`
-(provider-agnostic contract + types, zero vendor imports), `src/google-vision/` (the only
-importer of `@google-cloud/vision`), `src/image/` (download + sniff; plain `fetch`, no new
+(provider-agnostic contract + types, zero vendor imports), `src/ocr/google-vision/` (the
+only importer of `@google-cloud/vision`, nested under the contract it implements), `src/image/` (download + sniff; plain `fetch`, no new
 dependency), `src/shopping-list/` (orchestration core, pure logic). `src/discord/` gains
 the image-routing, usage-hint, and reply-splitting behavior; `src/config/` gains the OCR
 env fields; `src/lifecycle/` wires the provider selected by config. `biome.json` gains
-exactly one new restricted import — `@google-cloud/vision`: "Only src/google-vision may
+exactly one new restricted import — `@google-cloud/vision`: "Only src/ocr/google-vision may
 import @google-cloud/vision." — in the base `paths` plus one override entry per existing
 module pattern (per AGENTS.md's documented growth rule).
 
