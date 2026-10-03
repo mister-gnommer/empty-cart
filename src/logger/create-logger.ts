@@ -7,6 +7,10 @@
 import pino, { type Logger } from 'pino';
 import type { Config } from '../shared/types';
 
+// Re-exported so modules outside the pino zone (e.g. shopping-list) can type
+// their injected logger without importing pino themselves.
+export type { Logger };
+
 export const REDACT_PATHS = ['discordToken', '*.discordToken', '*.token', 'token', '*.*.token'];
 const REDACT_CENSOR = '[Redacted]';
 

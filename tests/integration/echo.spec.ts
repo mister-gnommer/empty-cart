@@ -15,6 +15,9 @@ const config: Config = {
   shutdownTimeoutMs: 5000,
   healthHost: '127.0.0.1',
   healthPort: 8081,
+  ocrProvider: { kind: 'none' },
+  ocrLanguageHints: [],
+  ocrChannelAllowlist: null,
 };
 
 describe('integration: !echo round trip', () => {
@@ -34,6 +37,9 @@ describe('integration: !echo round trip', () => {
       logger: cap.logger as never,
       botState,
       echo: handleEchoCommand,
+      // This suite exercises the echo path only; the list handler is a stub.
+      listSubmission: vi.fn(async () => ({ text: '' })),
+      usageHint: 'unused-usage-hint',
       clientFactory: () => client,
     });
     try {
@@ -43,7 +49,7 @@ describe('integration: !echo round trip', () => {
         content: '!echo integration round trip',
         guild: { id: 'guild-7' },
         channelId: 'channel-9',
-        channel: { id: 'channel-9', send },
+        channel: { id: 'channel-9', send, isThread: () => false },
       };
 
       // The stub message is a partial stand-in for the real Message object;

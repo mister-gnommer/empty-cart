@@ -17,6 +17,9 @@ const DEFAULT_CONFIG: Config = {
   shutdownTimeoutMs: 5000,
   healthHost: '127.0.0.1',
   healthPort: 8081,
+  ocrProvider: { kind: 'none' },
+  ocrLanguageHints: [],
+  ocrChannelAllowlist: null,
 };
 
 // Drive lifecycle.runApp() with mocked child modules. We import the module
@@ -251,10 +254,12 @@ describe('lifecycle contract', () => {
       });
       // Allow runApp to reach the "running" state (start awaits succeed).
       const p = env.runApp();
+      // Attached now: runApp may reject before the test reaches its await.
+      const exited = expect(p).rejects.toThrow(/process\.exit/);
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
       await dispatchSignal(SIGTERM);
-      await expect(p).rejects.toThrow(/process\.exit/);
+      await exited;
 
       const infoLines = env.cap.lines.filter((l) => l.level === 'info');
       expect(infoLines.some((l) => l.msg === 'shutdown requested' && l.reason === SIGTERM)).toBe(
@@ -282,6 +287,8 @@ describe('lifecycle contract', () => {
         loadConfigImpl: () => makeConfig({ shutdownTimeoutMs: 5000 }),
       });
       const p = env.runApp();
+      // Attached now: runApp may reject before the test reaches its await.
+      const exited = expect(p).rejects.toThrow(/process\.exit/);
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
       // First signal starts shutdown
@@ -300,7 +307,7 @@ describe('lifecycle contract', () => {
       expect(env.adapterStop.mock.calls.length).toBe(1);
       // Release the hang and let the race complete.
       resolveStop();
-      await expect(p).rejects.toThrow(/process\.exit/);
+      await exited;
     });
   });
 
@@ -315,12 +322,14 @@ describe('lifecycle contract', () => {
         loadConfigImpl: () => makeConfig({ shutdownTimeoutMs: 50 }), // very short budget
       });
       const p = env.runApp();
+      // Attached now: runApp may reject before the test reaches its await.
+      const exited = expect(p).rejects.toThrow(/process\.exit/);
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
       process.emit(SIGTERM, SIGTERM);
       // Let the 50ms budget elapse.
       await new Promise((r) => setTimeout(r, 200));
-      await expect(p).rejects.toThrow(/process\.exit/);
+      await exited;
       const warnExceeded = env.cap.lines.find(
         (l) => l.level === 'warn' && l.msg === 'shutdown budget exceeded',
       );
@@ -354,10 +363,12 @@ describe('lifecycle contract', () => {
         loadConfigImpl: () => makeConfig({ shutdownTimeoutMs: 5000 }),
       });
       const p = env.runApp();
+      // Attached now: runApp may reject before the test reaches its await.
+      const exited = expect(p).rejects.toThrow(/process\.exit/);
       await new Promise((r) => setImmediate(r));
       await new Promise((r) => setImmediate(r));
       await dispatchSignal(SIGINT);
-      await expect(p).rejects.toThrow(/process\.exit/);
+      await exited;
       expect(env.cap.lines.some((l) => l.msg === 'shutdown requested' && l.reason === SIGINT)).toBe(
         true,
       );

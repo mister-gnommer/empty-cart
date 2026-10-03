@@ -126,6 +126,93 @@ example.com/healthz {
 
 This is a deployment-time concern only; the bot has no awareness of Caddy and the contract/code does not change. (US3-relevant — included here per FR-010 "bundled deployment documentation".)
 
+## 8. OCR operations (`002-shopping-list-ocr`)
+
+The bot reads photos of shopping lists posted in Discord and replies with the recognized text. Recognition is performed by Google Cloud Vision. It is **off by default** — a 001-era env file keeps working unchanged.
+
+### 8.1 Google Cloud provisioning (one-time)
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), create a project (or pick an existing one).
+2. Enable **billing** on the project (Vision requires it, even inside the free tier).
+3. Enable the **Cloud Vision API** (*APIs & Services → Library → Cloud Vision API → Enable*).
+4. Create a **service account** (*IAM & Admin → Service Accounts → Create*). No project role is needed to call the Vision API itself.
+5. Create a **JSON key** for that service account (*Keys → Add key → JSON*) and copy it to the VPS:
+
+```bash
+sudo install -o empty-cart -g empty-cart -m 0600 gcv-key.json /etc/empty-cart/gcv-key.json
+shred -u gcv-key.json          # remove the local copy
+```
+
+The key file is a secret: mode `0600`, owned by the service user, never committed, never copied into the repo directory. The bot logs the key **path**, never its contents.
+
+6. **Cap spend.** Every recognized image is billed, and the bot doesn't rate-limit in code. It only rejects a second submission from a user who already has one in flight. So a user could keep sending multi-image messages back to back. Set both of these:
+   - **Request quota** (*APIs & Services → Cloud Vision API → Quotas & System Limits*): lower the request quota to what one household's lists need. When it runs out, Vision rejects the call, the bot logs `quota-exhausted`, and the user gets the generic "service not available" reply.
+   - **Billing budget with alerts** (*Billing → Budgets & alerts*): add a small monthly budget with email alerts. A budget only notifies you; it doesn't stop spending. The quota is the hard cap.
+
+### 8.2 OCR environment variables
+
+Append to `/etc/empty-cart/empty-cart.env`:
+
+```text
+OCR_PROVIDER=gcp-vision
+GCP_SA_KEY_PATH=/etc/empty-cart/gcv-key.json
+# OCR_LANGUAGE_HINTS=en                       # optional; omit for auto-detect
+# OCR_CHANNEL_ALLOWLIST=123456789012345678    # optional; omit = all channels
+```
+
+| Variable | Required | Validation | Default | Secret |
+|---|---|---|---|---|
+| `OCR_PROVIDER` | no | enum `gcp-vision\|none` | `none` | no |
+| `GCP_SA_KEY_PATH` | iff `OCR_PROVIDER=gcp-vision` | non-empty path; the file must be readable at startup | — | the path is not secret; the file **is** |
+| `OCR_LANGUAGE_HINTS` | no | comma-separated loose BCP-47 tags (`en`, `de`, `zh-Hans`, `en-t-i0-handwrit`) | empty = provider auto-detect | no |
+| `OCR_CHANNEL_ALLOWLIST` | no | comma-separated Discord channel ids (17–20 digits); an explicitly empty value is rejected | unset = every channel the bot can see | no |
+
+Notes:
+
+- With `OCR_PROVIDER=none`, `GCP_SA_KEY_PATH` may still be set (pre-staging a key before switching on); a blank value counts as unset, and a set value is otherwise ignored.
+- `OCR_CHANNEL_ALLOWLIST` only limits photo processing and the usage hint. Commands such as `!echo` keep working in every channel. Threads inherit their parent channel's entry, so a photo posted in a thread under an allowlisted channel is processed. List category ids have no effect.
+- Discord system messages (member joins, pins, boosts, thread-created notices) are always ignored: they never get the usage hint.
+- The 7 MB image ceiling, the ~25 s per-submission budget, and Discord's 2000-char message limit are fixed in code and not configurable.
+- Accepted formats are JPEG, PNG, and WEBP. HEIC, GIF, PDF, and other files receive the unsupported-format reply without any call to Google.
+
+### 8.3 Behavior with `OCR_PROVIDER=none`
+
+Recognition is disabled but the bot never goes silent. Input checks still run first: an oversized image gets the too-large reply, and an unsupported file gets the unsupported-format reply. That includes a file whose downloaded bytes are not JPEG/PNG/WEBP, so a passing image is still downloaded. Every other image submission is answered with the generic *"Service is not available, please try again later or contact the admin."* message. Text-only messages in processed channels still get the usage hint, and all commands work normally. No call is made to Google.
+
+### 8.4 Startup failures
+
+Key problems fail the bot **at startup**, not when the first photo arrives. systemd will show the unit as failed, and `journalctl -u empty-cart` contains exactly one `fatal` line:
+
+| Problem | Fatal log line |
+|---|---|
+| `OCR_PROVIDER=gcp-vision` without `GCP_SA_KEY_PATH` | `msg="config validation failed"`, `env="GCP_SA_KEY_PATH"`, `reason="missing"` |
+| `OCR_PROVIDER` set to an unknown value | `msg="config validation failed"`, `env="OCR_PROVIDER"`, `reason="malformed"` |
+| Key file missing or not readable by the service user | `msg="ocr provider failed to construct: GCP_SA_KEY_PATH does not point to a readable service-account key file"` |
+
+Only file readability is checked at startup. An invalid, revoked, or unauthorized key (and a disabled Vision API or missing billing) shows up at request time instead: users get the generic message, and the log carries the specific cause (`unauthorized`, `quota-exhausted`, …) with the submission's `correlationId`. The bot stays responsive.
+
+### 8.5 Viewing OCR activity
+
+Every photo submission logs `list submission received` → `image submitted` (once per image) → `list submission succeeded` / `list submission failed` (or `list submission rejected busy`), all sharing one `correlationId`:
+
+```bash
+sudo journalctl -u empty-cart -o cat | grep '"correlationId"'
+```
+
+Logs never contain recognized text, image bytes, or key material.
+
+### 8.6 Switching OCR providers
+
+The list flow depends only on the provider-agnostic `OcrProvider` contract in `src/ocr/types.ts`. Adding another provider takes exactly three changes:
+
+1. **A new sibling module** (e.g. `src/<vendor>/provider.ts`) that implements `OcrProvider` and maps the vendor's responses and errors to the contract's result types (`ok` / `undecodable-image` / `unavailable` with a cause). If it uses a vendor SDK, add a matching `noRestrictedImports` boundary in `biome.json` so only that module can import it.
+2. **A new config enum value** for `OCR_PROVIDER` (in `src/config/schema.ts`, `src/config/load-config.ts`, and the `Config` type in `src/shared/types.ts`), plus any credentials the provider needs.
+3. **One wiring branch** in the provider-selection block of `src/lifecycle/run-app.ts`.
+
+Image detection (`src/image/`), ordering and reply logic (`src/shopping-list/`), and reply posting (`src/discord/`) need **no** changes. `tests/contract/ocr-swap.spec.ts` enforces this: it runs the full user-facing flow against two different provider implementations and requires identical replies, and it statically checks that only the lifecycle wiring knows which provider is active.
+
+After switching, restart the service (`sudo systemctl restart empty-cart`) and send a test photo.
+
 ---
 
 ## Out of scope of this guide
