@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createDiscordAdapter } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import type { BotState, Config } from '../../src/shared/types';
+import { makeConfig } from '../helpers/config-fixture';
 import { makeCapturingLogger } from '../helpers/logger';
 import {
   emitMessage,
@@ -13,16 +14,7 @@ import {
   makeStubbedClient,
 } from '../helpers/stubbed-client';
 
-const baseConfig: Config = {
-  discordToken: 'SECRET-TOKEN-VALUE',
-  logLevel: 'info',
-  commandPrefix: '!',
-  echoCommandName: 'echo',
-  echoMaxLength: 1900,
-  shutdownTimeoutMs: 5000,
-  healthHost: '127.0.0.1',
-  healthPort: 8081,
-};
+const baseConfig = makeConfig({ discordToken: 'SECRET-TOKEN-VALUE' });
 
 function makeBotState(): BotState {
   return {
@@ -57,6 +49,7 @@ function buildFakeMessage(opts: {
   const channel = {
     id: opts.channelId ?? 'chan-1',
     send: vi.fn(sendImpl),
+    isThread: () => false,
   };
   return {
     raw: {
@@ -91,6 +84,9 @@ function makeAdapter(
     logger: cap.logger as never,
     botState,
     echo: opts.echo ?? handleEchoCommand,
+    // This suite exercises the echo path only; the list handler is a stub.
+    listSubmission: vi.fn(async () => ({ text: '' })),
+    usageHint: 'unused-usage-hint',
     clientFactory: () => client,
   });
 }
