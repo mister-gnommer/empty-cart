@@ -136,12 +136,26 @@ The bot reads photos of shopping lists posted in Discord and replies with the re
 2. Enable **billing** on the project (Vision requires it, even inside the free tier).
 3. Enable the **Cloud Vision API** (*APIs & Services → Library → Cloud Vision API → Enable*).
 4. Create a **service account** (*IAM & Admin → Service Accounts → Create*). No project role is needed to call the Vision API itself.
-5. Create a **JSON key** for that service account (*Keys → Add key → JSON*) and copy it to the VPS:
+5. Create a **JSON key** for that service account (*Keys → Add key → JSON*). Make sure you have the right file before copying it. Google Cloud downloads several kinds of credential JSON, and only a service-account key works:
+
+| File | Downloaded as | Top-level content |
+|---|---|---|
+| Service-account key (**the one you need**) | `<project-id>-<12 hex chars>.json` | `"type": "service_account"`, `client_email`, `private_key` |
+| OAuth client secret (wrong) | `client_secret_<id>.apps.googleusercontent.com.json` | `{"installed": {...}}` or `{"web": {...}}` |
 
 ```bash
-sudo install -o empty-cart -g empty-cart -m 0600 gcv-key.json /etc/empty-cart/gcv-key.json
-shred -u gcv-key.json          # remove the local copy
+grep -l '"service_account"' ~/Downloads/*.json      # on your machine: find the right file
 ```
+
+Copy it to the VPS and install it for the service user:
+
+```bash
+scp <project-id>-<hash>.json root@<vps>:/root/gcv-key.json          # on your machine
+sudo install -o empty-cart -g empty-cart -m 0600 /root/gcv-key.json /etc/empty-cart/gcv-key.json
+shred -u /root/gcv-key.json    # remove the temporary copy on the VPS
+```
+
+`install` copies the file and sets its owner, group, and mode in one step, so the key is never readable by other users. Delete the downloaded copy on your machine too: you can always create a new key in the console.
 
 The key file is a secret: mode `0600`, owned by the service user, never committed, never copied into the repo directory. The bot logs the key **path**, never its contents.
 
@@ -191,6 +205,15 @@ Key problems fail the bot **at startup**, not when the first photo arrives. syst
 
 Only file readability is checked at startup. An invalid, revoked, or unauthorized key (and a disabled Vision API or missing billing) shows up at request time instead: users get the generic message, and the log carries the specific cause (`unauthorized`, `quota-exhausted`, …) with the submission's `correlationId`. The bot stays responsive.
 
+A readable file that is not a service-account key (for example an OAuth client secret, see §8.1) also passes startup. It fails each photo within milliseconds, with `cause: "provider-error"` and `googleCode: 2` (gRPC `UNKNOWN`), because the auth library rejects it before any request reaches Google. Confirm the file type without printing the private key:
+
+```bash
+sudo -u empty-cart node -e 'const k=require("/etc/empty-cart/gcv-key.json");console.log(k.type,k.client_email)'
+# expected: service_account <name>@<project>.iam.gserviceaccount.com
+```
+
+After replacing the key, restart the service.
+
 ### 8.5 Viewing OCR activity
 
 Every photo submission logs `list submission received` → `image submitted` (once per image) → `list submission succeeded` / `list submission failed` (or `list submission rejected busy`), all sharing one `correlationId`:
@@ -212,6 +235,25 @@ The list flow depends only on the provider-agnostic `OcrProvider` contract in `s
 Image detection (`src/image/`), ordering and reply logic (`src/shopping-list/`), and reply posting (`src/discord/`) need **no** changes. `tests/contract/ocr-swap.spec.ts` enforces this: it statically checks that only the lifecycle wiring knows which provider is active. The integration suites run the full user-facing flow against a stub provider.
 
 After switching, restart the service (`sudo systemctl restart empty-cart`) and send a test photo.
+
+## 9. Upgrading an existing install
+
+Run the repo commands as the user that owns `/opt/empty-cart` (check with `stat -c %U /opt/empty-cart`), not as root:
+
+```bash
+OWNER=$(stat -c %U /opt/empty-cart)
+sudo -u "$OWNER" git -C /opt/empty-cart pull origin main
+sudo -u "$OWNER" npm --prefix /opt/empty-cart ci          # picks up new or changed dependencies
+sudo -u "$OWNER" npm --prefix /opt/empty-cart run build
+sudo systemctl restart empty-cart
+curl -s http://127.0.0.1:8081/healthz                     # expect "status":"healthy"
+```
+
+If you run `git` as root in a repo owned by another user, it fails with `fatal: detected dubious ownership in repository`. Git refuses to work in a repo owned by someone else, as a security measure. `git config --global --add safe.directory /opt/empty-cart` silences the error, but then root's `npm ci` and `npm run build` leave root-owned `node_modules/` and `dist/` that the owner can't update later. Prefer `sudo -u`. If the owner can't authenticate to the remote, pull as root and run `chown -R "$OWNER":"$OWNER" /opt/empty-cart` before restarting.
+
+`systemctl` and `journalctl` always run as root. The unit's `User=empty-cart` makes systemd drop privileges for the bot itself.
+
+If a release adds a feature that is off by default (like OCR), deploy the code first and confirm it's healthy. Then enable the feature in `/etc/empty-cart/empty-cart.env` and restart. A failure is then clearly the feature's configuration, not the upgrade.
 
 ---
 
