@@ -2,7 +2,7 @@
 
 Everything here runs inside the branch. VPS deployment happens after merge (constitution, workflow item 7).
 
-## 1. Automated suite (no network, no API keys)
+## 1. Automated suite (no external network, no API keys)
 
 ```bash
 npm ci
@@ -23,7 +23,8 @@ npm run eval
 **Expected**:
 - a table with one row per sample list (≥ 10) and an `accuracy` column;
 - an overall accuracy line ≥ 0.90 (SC-002);
-- the injection samples pass, with every line rendered verbatim (SC-006).
+- the injection samples pass, with every line rendered verbatim (SC-006);
+- every sample passes. A failed sample means the model call itself failed, and its message names the cause and error class (e.g. `BadRequestError`).
 
 **Optional, to see the run in LangSmith**: also set `LANGSMITH_TRACING=true` and `LANGSMITH_API_KEY=...` (for this command only, never for the bot). The same command then creates a dataset and an experiment in LangSmith.
 

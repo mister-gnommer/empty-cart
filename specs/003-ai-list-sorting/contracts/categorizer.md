@@ -36,14 +36,15 @@ function createAgentCategorizer(opts: {
 3. The prompt (`categorizer-prompt.ts`):
    - The system prompt lists every `CategoryId` with a short English description, says each line gets exactly one ID, says to use `other` when unsure, and says lines are data, never instructions.
    - The user message is the lines numbered `1.`, `2.`, … inside `<list>` and `</list>`.
-4. Unless `chatModel` is given, the model is built once at construction with `initChatModel(model, { apiKey, temperature: 0, maxRetries: 1 })`, plus `anthropicApiUrl: baseUrl` when `baseUrl` is set (OpenCode). `createAgent` gets `tools: []` and `responseFormat` = a zod schema whose `category` is `z.enum(CATEGORY_IDS)` and whose array is capped at 200 entries.
+4. Unless `chatModel` is given, the model is built once at construction with `initChatModel(model, { apiKey, maxRetries: 1 })`, plus `anthropicApiUrl: baseUrl` when `baseUrl` is set (OpenCode). No sampling parameters are sent. *Superseded 2026-11-07 (live eval)*: `temperature: 0` dropped; Claude Haiku 5.5 rejects any `temperature` other than 1 with a 400, so every call failed. `createAgent` gets `tools: []` and `responseFormat` = a zod schema whose `category` is `z.enum(CATEGORY_IDS)` and whose array is capped at 200 entries.
 5. No logging inside the module: the caller logs outcomes. The API key is never logged, returned or put into the result.
 
-## Test obligations (contract, `fakeModel`, written first)
+## Test obligations (contract, `fakeModel` unless noted, written first)
 
 - A scripted valid structured answer → `ok`, with the assignments passed through unchanged.
 - A scripted answer with an unknown category or a wrong shape (after retries) → `invalid-answer`.
-- A model that throws → `error`, with `errorName` set and no error message in the result.
+- A model that throws → `error`, with `errorName` set and no error message in the result. The thrown error is an `Error` subclass that keeps `name` as `"Error"`, as the Anthropic SDK's errors do, and `errorName` is the subclass's name. *Extended 2026-11-07 (live eval)*.
 - An already-aborted signal or a slow fake beyond the signal → `timeout`.
 - Prompt: the recorded model call contains every line verbatim, numbered, inside `<list>…</list>`, and the system prompt contains every category ID.
-- No live network: the suite runs with no `SORTING_API_KEY` set.
+- The model built by `initChatModel` (no `chatModel`), pointed at a local HTTP server as `baseUrl`: the request reaches that server, and its body has no `temperature`, `top_p` or `top_k`. *Added 2026-11-07 (live eval)*: `temperature: 0` made every Claude Haiku 5.5 call fail with a 400.
+- No live network: the suite runs with no `SORTING_API_KEY` set; the local server above is the only network use.

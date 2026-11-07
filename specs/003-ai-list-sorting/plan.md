@@ -27,7 +27,7 @@ Also bump the existing `zod` 4.4.3 → 4.6.7 (security advisory GHSA-mrhx-c7xc-m
 
 **Storage**: None. No checkpointer and no store (FR-015).
 
-**Testing**: Vitest 4 (existing unit/contract/integration projects). LangChain's `fakeModel` covers agent contract tests, a stub `ItemCategorizer` covers graph and flow tests, and a separate `vitest.eval.config.ts` runs the live-model eval suite outside `npm test`.
+**Testing**: Vitest 4 (existing unit/contract/integration projects). LangChain's `fakeModel` covers agent contract tests (plus one test that builds the real model against a local HTTP server, added 2026-11-07), a stub `ItemCategorizer` covers graph and flow tests, and a separate `vitest.eval.config.ts` runs the live-model eval suite outside `npm test`.
 
 **Target Platform**: The existing single Linux VPS (systemd), unchanged.
 

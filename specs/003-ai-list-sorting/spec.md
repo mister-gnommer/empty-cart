@@ -8,6 +8,8 @@
 
 **Revised**: 2026-11-07 (code review: FR-014 now forbids links to the list photos in traces. Every trace held the Discord attachment URLs, which open the photo until they expire, and a photo can show more than the list text FR-014 allows.)
 
+**Revised**: 2026-11-07 (live eval: User Story 4 scenario 3 added. A run where every model call failed showed each sample as passed, and only the overall score said anything was wrong, without saying why.)
+
 **Status**: Draft
 
 **Input**: User description: "But as you can see from this conversation, I need some handicap because of learning all this. So let's make this feature as simple as possible while introducing the basic graph and using agent, of course. But everything needs to be simplified so I can learn it while reviewing."
@@ -79,6 +81,7 @@ Also operator-only. The operator runs a small fixed set of sample lists through 
 
 1. **Given** the sample-list set, **When** the operator runs the evaluation, **Then** they get the share of lines placed in the expected category for each sample and overall.
 2. **Given** a sample containing prompt-injection lines, **When** the evaluation runs, **Then** the result shows whether those lines changed anything beyond their own category.
+3. **Given** a sample whose AI step gives no usable answer (error, timeout or invalid answer), **When** the evaluation runs, **Then** that sample fails and says why; a usable answer with some wrong categories only lowers the score.
 
 ---
 
