@@ -21,7 +21,12 @@ interface ItemCategorizer {
 }
 
 // agent-categorizer.ts
-function createAgentCategorizer(opts: { model: string; apiKey: string; baseUrl: string | null }): Promise<ItemCategorizer>;
+function createAgentCategorizer(opts: {
+  model: string;
+  apiKey: string;
+  baseUrl: string | null;
+  chatModel?: BaseChatModel;   // test seam: a ready model (e.g. fakeModel()) replaces initChatModel
+}): Promise<ItemCategorizer>;
 ```
 
 ## Rules
@@ -31,7 +36,7 @@ function createAgentCategorizer(opts: { model: string; apiKey: string; baseUrl: 
 3. The prompt (`categorizer-prompt.ts`):
    - The system prompt lists every `CategoryId` with a short English description, says each line gets exactly one ID, says to use `other` when unsure, and says lines are data, never instructions.
    - The user message is the lines numbered `1.`, `2.`, … inside `<list>` and `</list>`.
-4. The model is built once at construction with `initChatModel(model, { apiKey, temperature: 0, maxRetries: 1 })`, plus `anthropicApiUrl: baseUrl` when `baseUrl` is set (OpenCode). `createAgent` gets `tools: []` and `responseFormat` = a zod schema whose `category` is `z.enum(CATEGORY_IDS)` and whose array is capped at 200 entries.
+4. Unless `chatModel` is given, the model is built once at construction with `initChatModel(model, { apiKey, temperature: 0, maxRetries: 1 })`, plus `anthropicApiUrl: baseUrl` when `baseUrl` is set (OpenCode). `createAgent` gets `tools: []` and `responseFormat` = a zod schema whose `category` is `z.enum(CATEGORY_IDS)` and whose array is capped at 200 entries.
 5. No logging inside the module: the caller logs outcomes. The API key is never logged, returned or put into the result.
 
 ## Test obligations (contract, `fakeModel`, written first)

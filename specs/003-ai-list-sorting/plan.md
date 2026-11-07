@@ -130,7 +130,7 @@ Biome zones gain these entries:
 
 The zone sentence in `AGENTS.md` is updated to match.
 
-**Learning comments**: in `list-graph.ts`, `agent-categorizer.ts` and `categorize.eval.ts`, every library call gets a one-line `// learn:` comment (spec §Assumptions). Example: `// learn: compile() freezes the wiring into a runnable; no checkpointer means state dies after invoke`. They are excluded from the usual "comment only the why" rule and can be removed with one grep.
+**Learning comments**: in `list-graph.ts`, `agent-categorizer.ts`, `create-tracer.ts` and `categorize.eval.ts`, plus the `graph.invoke` call in `handle-list-submission.ts`, every library call gets a one-line `// learn:` comment (spec §Assumptions). Example: `// learn: compile() freezes the wiring into a runnable; no checkpointer means state dies after invoke`. They are excluded from the usual "comment only the why" rule and can be removed with one grep.
 
 **Extension points kept open** (spec §Assumptions "Built to extend"):
 - **Shop order:** enters the graph as state input `shopOrder`. Today the handler fills it from `DEFAULT_SHOP_ORDER`; later a `chooseStore` node or a store lookup fills it.

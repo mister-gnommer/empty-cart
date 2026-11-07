@@ -6,6 +6,8 @@
 
 **Revised**: 2026-10-31 (plan review: step tracing on by default for the test period, tracked by issue #16; AI provider routed through OpenCode)
 
+**Revised**: 2026-11-07 (code review: FR-014 now forbids links to the list photos in traces. Every trace held the Discord attachment URLs, which open the photo until they expire, and a photo can show more than the list text FR-014 allows.)
+
 **Status**: Draft
 
 **Input**: User description: "But as you can see from this conversation, I need some handicap because of learning all this. So let's make this feature as simple as possible while introducing the basic graph and using agent, of course. But everything needs to be simplified so I can learn it while reviewing."
@@ -34,11 +36,11 @@ A user sends a photo of a handwritten shopping list, as today. Instead of gettin
 
 ### User Story 2 - I Still Get My List When the AI Step Fails (Priority: P2)
 
-If the sorting step cannot run (the AI service is unreachable, slow, returns something unusable, or is switched off by the operator), the user still receives their list, unsorted and exactly as recognized (today's behavior), with a one-line note that sorting was not possible this time.
+If the sorting step fails (the AI service is unreachable, slow, or returns something unusable), the user still receives their list, unsorted and exactly as recognized (today's behavior), with a one-line note that sorting was not possible this time.
 
 **Why this priority**: The AI step is an extra on top of a working feature. A failure in it must never cost the user their list.
 
-**Independent Test**: Run the flow with the AI step disabled or forced to fail. The reply is the recognized text as it is returned today, preceded by the short "could not sort" note, and the failure cause is logged for the operator.
+**Independent Test**: Run the flow with the AI step forced to fail. The reply is the recognized text as it is returned today, preceded by the short "could not sort" note, and the failure cause is logged for the operator.
 
 **Acceptance Scenarios**:
 
@@ -109,7 +111,7 @@ Also operator-only. The operator runs a small fixed set of sample lists through 
 - **FR-011**: Recognized text MUST be treated as untrusted data in the AI step. The instructions given to the model MUST tell it to treat item lines as data only, and the system MUST rely on FR-002 and FR-006 (not on the model's goodwill) to ensure that nothing in a line can alter the reply text, the categories or the bot's behavior.
 - **FR-012**: The processing of one submission MUST be organized as a small sequence of explicit, separately testable steps (recognize → categorize → sort → reply), each with a declared input and output, and the run MUST be reconstructable step by step from logs using the correlation identifier.
 - **FR-013**: Structured logs MUST record each step's outcome (including AI-step success, fallback and its cause, and duration) and MUST NOT contain list text or images, as today.
-- **FR-014**: The system MUST send per-step traces of each list run to an external step-tracing service, **on by default** during the initial test period, and the operator MUST be able to switch it off by configuration. Traces MAY contain list text; the default is the operator's explicit consent, as the operator is the maintainer testing the feature. When tracing is on but its credentials are missing, the system MUST start anyway, run untraced, and log a warning. Credentials MUST NOT be committed or logged. Switching the default to off after the test period is tracked by GitHub issue #16.
+- **FR-014**: The system MUST send per-step traces of each list run to an external step-tracing service, **on by default** during the initial test period, and the operator MUST be able to switch it off by configuration. Traces MAY contain list text but MUST NOT contain links to the list photos; the default is the operator's explicit consent, as the operator is the maintainer testing the feature. When tracing is on but its credentials are missing, the system MUST start anyway, run untraced, and log a warning. Credentials MUST NOT be committed or logged. Switching the default to off after the test period is tracked by GitHub issue #16.
 - **FR-015**: The system MUST NOT persist list images, recognized text, items or categories beyond handling the submission, as today. (Persisting state across messages is deferred to the per-store-order feature.)
 - **FR-016**: The repository MUST include a small set of at least 10 synthetic sample lists (no personal data), mixing Polish and English, with the expected category for each line, plus a way for the operator to run the categorization step against them and get a per-sample and overall score. The automated test suite MUST NOT depend on a live AI service.
 - **FR-017**: All existing list behaviors not changed here (input checks, busy guard, error messages, channel allowlist, concurrency, recognition budget, usage hint) MUST stay as they are.

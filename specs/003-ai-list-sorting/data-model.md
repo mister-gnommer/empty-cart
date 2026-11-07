@@ -18,7 +18,7 @@ All entities are transient: they live for one submission and none is persisted (
 
 - `CATEGORY_IDS` is the single list of valid IDs. The zod enum in the agent schema and `checkAssignments` both derive from it.
 - Order and labels are separate maps keyed by ID. The model and the sort logic only ever see IDs. Translating headings later replaces `CATEGORY_LABELS` only.
-- **Order invariant**: a shop order is a permutation of `CATEGORY_IDS` with `other` last. Any order passed into the graph is checked against this invariant; tests guard it.
+- **Order invariant**: a shop order is a permutation of `CATEGORY_IDS` with `other` last. `DEFAULT_SHOP_ORDER`, the only order today, is guarded by the catalog tests, and `sortByShopOrder` throws on a category missing from the order. A future per-store order source validates its orders when it is added.
 
 ## List item
 
@@ -45,7 +45,6 @@ All entities are transient: they live for one submission and none is persisted (
 
 | Field | Type | Written by | Meaning |
 |---|---|---|---|
-| `attachments` | `SubmissionAttachment[]` | invoke input | Photos to recognize, in message order. |
 | `shopOrder` | `CategoryId[]` | invoke input | The order to sort by. It comes from `DEFAULT_SHOP_ORDER` today, and that is the single place to replace for per-store orders. |
 | `readablePages` | `string[]` | `recognize` | Non-blank page texts, verbatim. Empty until recognition succeeds. |
 | `items` | `string[]` | `recognize` | `splitItems(readablePages)`. |
@@ -53,7 +52,9 @@ All entities are transient: they live for one submission and none is persisted (
 | `sortingFailure` | `SortingFailureCause \| null` | `categorize` | `timeout` · `invalid-answer` · `error` · `skipped-too-long`. |
 | `reply` | `string \| null` | `recognize` (early exit), `sort`, `unsorted` | Final reply text. Non-null means the run is done. |
 
-**Runtime context** (not state): `{ log: Logger }`, the logger bound to the submission's correlation ID. It is kept out of state because it is a dependency, not data, and state should hold only plain data.
+**Runtime context** (not state): `{ log: Logger; attachments: SubmissionAttachment[] }`. `log` is the logger bound to the submission's correlation ID; it is a dependency, not data, and state should hold only plain data. `attachments` are the photos to recognize, in message order; they stay out of state because traces record state, and a Discord attachment URL opens the photo until it expires.
+
+> **Superseded 2026-11-07 (code review)**: `attachments` used to be a state field written by the invoke input. It moved to the runtime context because every trace recorded it, exposing photo links (see spec FR-014).
 
 ## Run outcomes (state transitions)
 

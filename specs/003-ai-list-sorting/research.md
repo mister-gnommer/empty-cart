@@ -4,7 +4,7 @@
 
 ## R1. Orchestration: LangGraph `StateGraph` with `StateSchema`
 
-- **Decision**: Use `@langchain/langgraph` 1.6.0. State is a `new StateSchema({...})` of zod fields. Nodes are typed `GraphNode<typeof State>`. Routing uses `addConditionalEdges(from, router, [targets])`. Per-run dependencies (the correlation-bound logger) go through runtime context (`new StateGraph(State, ContextSchema)`, `invoke(input, { context })`). The graph is compiled once per handler, **without a checkpointer**.
+- **Decision**: Use `@langchain/langgraph` 1.6.0. State is a `new StateSchema({...})` of zod fields. Nodes are typed `GraphNode<typeof State>`. Routing uses `addConditionalEdges(from, router, [targets])`. Per-run dependencies (the correlation-bound logger) and the attachments (kept out of traced state, as their URLs open the photos) go through runtime context (`new StateGraph(State, ContextSchema)`, `invoke(input, { context })`). *Extended 2026-11-07 (code review)*: the attachments joined the context; see `data-model.md`. The graph is compiled once per handler, **without a checkpointer**.
 - **Rationale**: `StateSchema` is the form current docs lead with, and zod is already a project dependency. Runtime context is how a node later gets the `userId` for per-store orders. With no checkpointer, nothing outlives `invoke`, which FR-015 requires.
 - **Alternatives considered**:
   - `Annotation.Root`: still supported and needs no zod. Rejected only because `StateSchema` is the current idiom.
@@ -44,7 +44,7 @@
 ## R5. Timeouts and failure mapping
 
 - **Decision**:
-  - `agent.invoke(input, { signal: AbortSignal.timeout(15_000) })`, with abandonment as a backstop in the node. This is the same `unlessExpired` pattern the OCR step uses, because a provider SDK may ignore the abort signal.
+  - `agent.invoke(input, { signal })`, where `signal` is the node's 15 s budget (`AbortController` plus `setTimeout`, like the recognition budget, so vitest fake timers control it; `AbortSignal.timeout` would not be), with abandonment as a backstop in the node. This is the same `unlessExpired` pattern the OCR step uses, because a provider SDK may ignore the abort signal.
   - Failure causes are `timeout` (abort or budget), `invalid-answer` (schema failure after the agent's retries, or a `checkAssignments` rejection), `error` (anything else, with the error name in the log), and `skipped-too-long` (R6).
   - Every cause leads to the `unsorted` node with the note.
 - **Rationale**: Rejections are mapped into a result union at the categorizer boundary, so the graph never sees a thrown vendor error.
@@ -56,7 +56,7 @@
 
 ## R7. Tracing: LangSmith via an explicit tracer, on by default for the test period
 
-- **Decision**: Config `TRACING` = `langsmith` (default) or `off`, plus `LANGSMITH_API_KEY` and an optional `LANGSMITH_PROJECT` (default `empty-cart`). `src/tracing/create-tracer.ts` builds a `LangChainTracer` around a `langsmith` `Client`. The handler passes it as `callbacks` in `graph.invoke(input, { callbacks, runName: 'list-submission', metadata: { correlationId } })`, so a trace can be found by the same ID as the logs. On shutdown, `flush()` awaits `client.awaitPendingTraceBatches()` within the existing shutdown timeout.
+- **Decision**: Config `TRACING` = `langsmith` (default) or `off`, plus `LANGSMITH_API_KEY` and an optional `LANGSMITH_PROJECT` (default `empty-cart`). `src/tracing/create-tracer.ts` builds a `LangChainTracer` around a `langsmith` `Client`. The handler passes it as `callbacks` in `graph.invoke(input, { callbacks, runName: 'list-submission', metadata: { correlationId } })`, so a trace can be found by the same ID as the logs. On shutdown, `flush()` awaits `client.awaitPendingTraceBatches()` within the existing shutdown timeout. A slow flush only uses up that time; it never turns a clean shutdown into the timeout exit code, since lost traces are not a failed shutdown. *Superseded 2026-11-07 (code review)*: the flush first raced with the other stops, so a slow tracing service made a clean shutdown exit 1. See `contracts/config.md` rule 4.
 - **Rationale**:
   - The maintainer wants full insight while testing (spec FR-014; issue #16 switches the default to off later).
   - An explicit callback makes "on by default" a real code default. LangChain's own env switch (`LANGSMITH_TRACING`) would only be on when the env file says so, and it is global and hidden.
