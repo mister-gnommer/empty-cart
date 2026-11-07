@@ -26,8 +26,11 @@ npm run build           # tsc → dist/
 
 Create `/etc/empty-cart/empty-cart.env` (readable only by the service user; mode `0600`):
 
+Keep comments on their own lines: systemd keeps anything after the `=`, including a trailing `# comment`, as part of the value.
+
 ```text
-DISCORD_TOKEN=                 # required, secret. Never commit.
+# required, secret. Never commit.
+DISCORD_TOKEN=
 LOG_LEVEL=info
 COMMAND_PREFIX=!
 ECHO_COMMAND_NAME=echo
@@ -170,8 +173,10 @@ Append to `/etc/empty-cart/empty-cart.env`:
 ```text
 OCR_PROVIDER=gcp-vision
 GCP_SA_KEY_PATH=/etc/empty-cart/gcv-key.json
-# OCR_LANGUAGE_HINTS=en                       # optional; omit for auto-detect
-# OCR_CHANNEL_ALLOWLIST=123456789012345678    # optional; omit = all channels
+# optional; omit for auto-detect
+# OCR_LANGUAGE_HINTS=en
+# optional; omit = all channels
+# OCR_CHANNEL_ALLOWLIST=123456789012345678
 ```
 
 | Variable | Required | Validation | Default | Secret |
@@ -236,7 +241,62 @@ Image detection (`src/image/`), ordering and reply logic (`src/shopping-list/`),
 
 After switching, restart the service (`sudo systemctl restart empty-cart`) and send a test photo.
 
-## 9. Upgrading an existing install
+## 9. AI list sorting and step tracing (`003-ai-list-sorting`)
+
+With sorting on, a recognized list comes back grouped under category headings in a fixed shop-walk order (fruit & vegetables → bread → meat & fish → …). Every line keeps its exact wording. The model only picks a category per line; it never writes the reply text.
+
+### 9.1 Environment variables
+
+Append to `/etc/empty-cart/empty-cart.env`:
+
+```text
+SORTING_MODEL=anthropic:claude-haiku-5-5
+# OpenCode gateway; omit for Anthropic's own API
+SORTING_BASE_URL=https://opencode.ai/inference/anthropic
+SORTING_API_KEY=<OpenCode key>
+LANGSMITH_API_KEY=<LangSmith key>
+# uncomment to switch tracing off
+# TRACING=off
+# LANGSMITH_PROJECT=empty-cart
+```
+
+| Variable | Required | Validation | Default | Secret |
+|---|---|---|---|---|
+| `SORTING_MODEL` | no | `anthropic:<model>`, no whitespace | unset = sorting off | no |
+| `SORTING_API_KEY` | iff `SORTING_MODEL` is set | non-empty | — | **yes** |
+| `SORTING_BASE_URL` | no | absolute `https:` URL, no whitespace or `#` | unset = the provider's own API | no |
+| `TRACING` | no | `langsmith\|off` | `langsmith` (test period) | no |
+| `LANGSMITH_API_KEY` | no | — | unset = untraced, one startup warning | **yes** |
+| `LANGSMITH_PROJECT` | no | non-empty | `empty-cart` | no |
+
+Notes:
+
+- **Do not set `LANGSMITH_TRACING`** for the bot. The bot passes its tracer explicitly; that variable would make LangChain add a second one and trace every run twice. It is only for `npm run eval`.
+- **Traces contain list text.** Tracing is on by default only for the initial test period. [Issue #16](https://github.com/mister-gnommer/empty-cart/issues/16) switches the default off afterwards and deletes the test-period traces. Logs never contain list text, traced or not.
+- The AI step has its own 15 s budget on top of the ~25 s recognition budget. Lists over 200 lines skip sorting. Both are fixed in code.
+- One model call per list. There are no cost controls beyond the on/off switch; set a spending limit at the provider (OpenCode) if you want one.
+
+### 9.2 Behavior
+
+| Situation | Reply |
+|---|---|
+| Sorting off (`SORTING_MODEL` unset) | The recognized text exactly as before, no note |
+| Sorting on, model answered validly | Grouped list under `**Category**` headings |
+| Model unreachable, slow (> 15 s), invalid answer, or list > 200 lines | *"I couldn't sort this list this time, so here it is as written:"* followed by the recognized text |
+
+A model that cannot be built (unknown provider in `SORTING_MODEL`) fails startup with one `fatal` line, `msg="list categorizer failed to construct: …"`. A bad API key or a down gateway only shows up per list, as the fallback above.
+
+### 9.3 Viewing sorting activity
+
+Each graph step logs one `list step` line (`step`, `outcome`, `durationMs`) with the submission's `correlationId`; AI-step failures add `cause` and `categorizerId`. The final `list submission succeeded` line carries `sorting: "sorted" | "fallback" | "off"`.
+
+```bash
+sudo journalctl -u empty-cart -o cat | grep '"list step"'
+```
+
+With tracing on, open the `empty-cart` project in LangSmith: each list is one `list-submission` run whose metadata `correlationId` matches the logs, with child runs `recognize → categorize → sort` (or `unsorted`) and the model call inside `categorize`.
+
+## 10. Upgrading an existing install
 
 Run the repo commands as the user that owns `/opt/empty-cart` (check with `stat -c %U /opt/empty-cart`), not as root:
 

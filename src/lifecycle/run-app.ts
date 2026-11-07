@@ -2,6 +2,8 @@
 // budget. The only module that calls `process.exit`. Startup order, signal
 // handling, shutdown race, no flush, and exit discipline follow the lifecycle
 // contract.
+import { createAgentCategorizer } from '../categorizer/agent-categorizer';
+import type { ItemCategorizer } from '../categorizer/types';
 import { ConfigError, loadConfig } from '../config/load-config';
 import type { DiscordAdapter } from '../discord/adapter';
 import { createDiscordAdapter } from '../discord/adapter';
@@ -20,6 +22,7 @@ import { newCorrelationId } from '../shared/correlation-id';
 import type { BotState, ProcessPhase } from '../shared/types';
 import { createListSubmissionHandler } from '../shopping-list/handle-list-submission';
 import { usageHintMessage } from '../shopping-list/messages';
+import { createTracer, type Tracer } from '../tracing/create-tracer';
 
 let shuttingDownInFlight = false;
 
@@ -86,6 +89,7 @@ export async function runApp(): Promise<void> {
   // and the message routing before the bot ever serves a request.
   let healthServer: HealthServer | null = null;
   let adapter: DiscordAdapter | null = null;
+  let tracer: Tracer | null = null;
 
   // runApp stays pending until shutdown completes so a thrown `process.exit`
   // from the (detached) shutdown chain propagates as a rejection to the
@@ -108,22 +112,30 @@ export async function runApp(): Promise<void> {
 
   async function doShutdown(): Promise<void> {
     botState.phase = 'shutting-down';
+    const budget = config.shutdownTimeoutMs;
+    const budgetSpent = new Promise<'timeout'>((resolve) => {
+      const t = setTimeout(() => resolve('timeout'), budget);
+      t.unref?.();
+    });
+    // Traces still queued for upload. A slow tracing service may use up the
+    // budget but never decides the exit code: lost traces are not a failed shutdown.
+    const flushed = Promise.race([
+      tracer ? tracer.flush().catch(() => undefined) : Promise.resolve(),
+      budgetSpent,
+    ]);
     const stops: Promise<unknown>[] = [
       adapter ? adapter.stop() : Promise.resolve(),
       healthServer ? healthServer.stop() : Promise.resolve(),
     ];
-    const budget = config.shutdownTimeoutMs;
     const winner = await Promise.race([
       Promise.allSettled(stops).then(() => 'done' as const),
-      new Promise<'timeout'>((resolve) => {
-        const t = setTimeout(() => resolve('timeout'), budget);
-        t.unref?.();
-      }),
+      budgetSpent,
     ]);
     if (winner === 'timeout') {
       log.warn({ msg: 'shutdown budget exceeded', phase: botState.phase });
       process.exit(1);
     } else {
+      await flushed;
       log.info({ msg: 'shutdown complete', phase: botState.phase });
       process.exit(0);
     }
@@ -175,19 +187,61 @@ export async function runApp(): Promise<void> {
     return;
   }
 
-  // §1.5 — list-submission handler (pure orchestration; the swap surface for a
+  // §1.5 — list categorizer selection, following the OCR provider pattern: a
+  // model that cannot be built fails startup, never the first list.
+  let categorizer: ItemCategorizer | null;
+  try {
+    switch (config.sorting.kind) {
+      case 'anthropic':
+        categorizer = await createAgentCategorizer({
+          model: config.sorting.model,
+          apiKey: config.sorting.apiKey,
+          baseUrl: config.sorting.baseUrl,
+        });
+        log.info({ msg: 'sorting enabled', categorizerId: categorizer.id });
+        break;
+      case 'none':
+        categorizer = null;
+        log.info({ msg: 'sorting disabled' });
+        break;
+    }
+  } catch (e) {
+    const message = e instanceof Error ? e.message : String(e);
+    log.fatal({ msg: `list categorizer failed to construct: ${message}` });
+    process.exit(1);
+    return;
+  }
+
+  // §1.6 — step tracing. A missing key is not fatal: the bot runs untraced.
+  tracer = createTracer(config.tracing);
+  switch (config.tracing.kind) {
+    case 'langsmith':
+      log.info({ msg: 'tracing enabled', project: config.tracing.project });
+      break;
+    case 'off':
+      if (config.tracing.reason === 'missing-key') {
+        log.warn({ msg: 'tracing disabled', reason: 'missing-key' });
+      } else {
+        log.info({ msg: 'tracing disabled', reason: 'disabled' });
+      }
+      break;
+  }
+
+  // §1.7 — list-submission handler (pure orchestration; the swap surface for a
   // new OCR provider is exactly: a new provider module + a config union arm +
   // the wiring branch above).
   const listSubmission = createListSubmissionHandler({
     provider: ocrProvider,
     fetchImage: fetchAndValidateImage,
     languageHints: config.ocrLanguageHints,
+    categorizer,
+    callbacks: tracer.callbacks,
     logger: log,
     now: Date.now,
   });
   const usageHint = usageHintMessage(config.commandPrefix);
 
-  // §1.6 — start health server (post-config; phase stays `starting`).
+  // §1.8 — start health server (post-config; phase stays `starting`).
   try {
     healthServer = startHealthServer({
       config: { healthHost: config.healthHost, healthPort: config.healthPort },
@@ -201,7 +255,7 @@ export async function runApp(): Promise<void> {
     return;
   }
 
-  // §1.7 — discord adapter (only importer of discord.js)
+  // §1.9 — discord adapter (only importer of discord.js)
   try {
     adapter = createDiscordAdapter({
       config,
@@ -232,7 +286,7 @@ export async function runApp(): Promise<void> {
   // point the health endpoint reports phase "starting".
   botState.phase = 'running';
 
-  // §1.8 — bot started (no secrets)
+  // §1.10 — bot started (no secrets)
   log.info({
     msg: 'bot started',
     healthAddress: healthServer.address,

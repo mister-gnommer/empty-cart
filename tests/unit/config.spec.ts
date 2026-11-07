@@ -26,6 +26,8 @@ const DEFAULT_CONFIG: Config = {
   ocrProvider: { kind: 'none' },
   ocrLanguageHints: [],
   ocrChannelAllowlist: null,
+  sorting: { kind: 'none' },
+  tracing: { kind: 'off', reason: 'missing-key' },
 };
 
 function expectError(
@@ -260,6 +262,115 @@ describe('loadConfig', () => {
         'OCR_PROVIDER',
         'malformed',
       );
+    });
+    it('validates the OCR fields before the sorting fields', () => {
+      expectError(
+        { ...VALID, OCR_PROVIDER: 'bogus', SORTING_MODEL: 'bogus' },
+        'OCR_PROVIDER',
+        'malformed',
+      );
+    });
+    it('validates the sorting fields before the tracing fields', () => {
+      expectError(
+        { ...VALID, SORTING_MODEL: 'anthropic:m', TRACING: 'yes' },
+        'SORTING_API_KEY',
+        'missing',
+      );
+    });
+    it('validates TRACING before LANGSMITH_PROJECT', () => {
+      expectError({ ...VALID, TRACING: 'yes', LANGSMITH_PROJECT: '' }, 'TRACING', 'malformed');
+    });
+  });
+
+  describe('SORTING_MODEL / SORTING_API_KEY / SORTING_BASE_URL', () => {
+    const HAIKU = 'anthropic:claude-haiku-5-5';
+    const OPENCODE = 'https://opencode.ai/inference/anthropic';
+
+    it('sorting on without an API key → missing SORTING_API_KEY', () => {
+      expectError({ ...VALID, SORTING_MODEL: HAIKU }, 'SORTING_API_KEY', 'missing');
+      expectError(
+        { ...VALID, SORTING_MODEL: HAIKU, SORTING_API_KEY: '' },
+        'SORTING_API_KEY',
+        'missing',
+      );
+    });
+    it('model, key and OpenCode base URL → anthropic sorting config', () => {
+      const cfg = loadConfig({
+        ...VALID,
+        SORTING_MODEL: HAIKU,
+        SORTING_API_KEY: 'sk-test',
+        SORTING_BASE_URL: OPENCODE,
+      });
+      expect(cfg.sorting).toEqual({
+        kind: 'anthropic',
+        model: HAIKU,
+        apiKey: 'sk-test',
+        baseUrl: OPENCODE,
+      });
+    });
+    it('no base URL → the provider API (null)', () => {
+      const cfg = loadConfig({ ...VALID, SORTING_MODEL: HAIKU, SORTING_API_KEY: 'k' });
+      expect(cfg.sorting).toEqual({ kind: 'anthropic', model: HAIKU, apiKey: 'k', baseUrl: null });
+    });
+    it('empty model → sorting off, and a pre-staged key is dropped', () => {
+      const cfg = loadConfig({ ...VALID, SORTING_MODEL: '', SORTING_API_KEY: 'k' });
+      expect(cfg.sorting).toEqual({ kind: 'none' });
+    });
+    it.each(['openai:gpt-x', 'anthropic:', 'anthropic', 'anthropic: x'])(
+      'malformed model %j → malformed SORTING_MODEL',
+      (model) => {
+        expectError(
+          { ...VALID, SORTING_MODEL: model, SORTING_API_KEY: 'k' },
+          'SORTING_MODEL',
+          'malformed',
+        );
+      },
+    );
+    it.each([
+      'http://x.y',
+      'opencode.ai',
+      // A trailing comment, which systemd's EnvironmentFile keeps in the value.
+      'https://opencode.ai/inference/anthropic   # OpenCode gateway',
+      'https://opencode.ai/inference/anthropic#x',
+    ])('unusable base URL %j → malformed SORTING_BASE_URL', (url) => {
+      expectError(
+        { ...VALID, SORTING_MODEL: HAIKU, SORTING_API_KEY: 'k', SORTING_BASE_URL: url },
+        'SORTING_BASE_URL',
+        'malformed',
+      );
+    });
+  });
+
+  describe('TRACING / LANGSMITH_API_KEY / LANGSMITH_PROJECT', () => {
+    it('key set, TRACING absent → langsmith with the default project (on by default)', () => {
+      const cfg = loadConfig({ ...VALID, LANGSMITH_API_KEY: 'ls-key' });
+      expect(cfg.tracing).toEqual({ kind: 'langsmith', apiKey: 'ls-key', project: 'empty-cart' });
+    });
+    it('custom project → used', () => {
+      const cfg = loadConfig({ ...VALID, LANGSMITH_API_KEY: 'k', LANGSMITH_PROJECT: 'p' });
+      expect(cfg.tracing).toEqual({ kind: 'langsmith', apiKey: 'k', project: 'p' });
+    });
+    it('TRACING=off with a key → off/disabled', () => {
+      const cfg = loadConfig({ ...VALID, TRACING: 'off', LANGSMITH_API_KEY: 'k' });
+      expect(cfg.tracing).toEqual({ kind: 'off', reason: 'disabled' });
+    });
+    it('tracing on with an empty key → off/missing-key, not an error', () => {
+      const cfg = loadConfig({ ...VALID, TRACING: 'langsmith', LANGSMITH_API_KEY: '' });
+      expect(cfg.tracing).toEqual({ kind: 'off', reason: 'missing-key' });
+    });
+    it('malformed: TRACING=yes → malformed', () => {
+      expectError({ ...VALID, TRACING: 'yes' }, 'TRACING', 'malformed');
+    });
+    it('malformed: empty LANGSMITH_PROJECT → malformed', () => {
+      expectError(
+        { ...VALID, LANGSMITH_API_KEY: 'k', LANGSMITH_PROJECT: '' },
+        'LANGSMITH_PROJECT',
+        'malformed',
+      );
+    });
+    it('LANGSMITH_TRACING is not read: it cannot turn tracing on', () => {
+      const cfg = loadConfig({ ...VALID, LANGSMITH_TRACING: 'true' });
+      expect(cfg.tracing).toEqual({ kind: 'off', reason: 'missing-key' });
     });
   });
 });

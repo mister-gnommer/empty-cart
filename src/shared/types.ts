@@ -23,6 +23,27 @@ export type OcrProviderConfig =
     }>
   | Readonly<{ kind: 'none' }>;
 
+/**
+ * Selected AI categorizer for list sorting. `none` turns sorting off: the list
+ * reply stays the verbatim recognized text.
+ */
+export type SortingConfig =
+  | Readonly<{ kind: 'none' }>
+  | Readonly<{
+      kind: 'anthropic';
+      /** Full `provider:model` string, e.g. `anthropic:claude-haiku-5-5`. */
+      model: string;
+      /** Secret: an OpenCode key when `baseUrl` points at OpenCode. */
+      apiKey: string;
+      /** null = the provider's own API. */
+      baseUrl: string | null;
+    }>;
+
+/** Step tracing of list runs. Traces contain list text. */
+export type TracingConfig =
+  | Readonly<{ kind: 'off'; reason: 'disabled' | 'missing-key' }>
+  | Readonly<{ kind: 'langsmith'; apiKey: string; project: string }>;
+
 export type Config = Readonly<{
   discordToken: string;
   logLevel: LogLevel;
@@ -37,6 +58,8 @@ export type Config = Readonly<{
   ocrLanguageHints: readonly string[];
   /** Channel snowflakes in which photos are processed; null = every visible channel. */
   ocrChannelAllowlist: readonly string[] | null;
+  sorting: SortingConfig;
+  tracing: TracingConfig;
 }>;
 
 export type BotState = {

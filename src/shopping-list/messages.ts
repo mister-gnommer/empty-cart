@@ -9,6 +9,7 @@ type ListMessages = {
   readonly unsupportedFormat: 'Sorry, that file format is not supported — please send a JPEG, PNG, or WEBP photo.';
   readonly imageTooLarge: 'That image is too large — please send a photo under 7 MB.';
   readonly busy: 'I am still working on your previous list — please wait for it to finish before sending another.';
+  readonly sortingFailedNote: "I couldn't sort this list this time, so here it is as written:";
 };
 
 export const LIST_MESSAGES: ListMessages = Object.freeze({
@@ -18,6 +19,7 @@ export const LIST_MESSAGES: ListMessages = Object.freeze({
     'Sorry, that file format is not supported — please send a JPEG, PNG, or WEBP photo.',
   imageTooLarge: 'That image is too large — please send a photo under 7 MB.',
   busy: 'I am still working on your previous list — please wait for it to finish before sending another.',
+  sortingFailedNote: "I couldn't sort this list this time, so here it is as written:",
 });
 
 /** Hint sent in reply to a message without an image in a processed channel. */

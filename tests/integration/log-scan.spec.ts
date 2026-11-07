@@ -2,6 +2,8 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
+import type { ItemCategorizer } from '../../src/categorizer/types';
 import { MAX_IMAGE_BYTES } from '../../src/image/fetch-image';
 import { createDisabledProvider } from '../../src/ocr/disabled-provider';
 import {
@@ -20,6 +22,7 @@ import {
 } from '../helpers/list-flow-env';
 import type { ScriptedFetchEntry } from '../helpers/scripted-fetch';
 import { makeStreamLogger } from '../helpers/stream-logger';
+import { createStubCategorizer, failedAnswer, okAnswer } from '../helpers/stub-categorizer';
 import {
   createStubOcrProvider,
   okResult,
@@ -29,7 +32,8 @@ import {
 import { emitMessage } from '../helpers/stubbed-client';
 
 // End-to-end content-free logging: representative list-submission lifecycles
-// (happy, every failure class, busy rejection, disabled provider) run through
+// (happy, sorted, sorting fallback, every failure class, busy rejection,
+// disabled provider) run through
 // the REAL adapter, handler, image validator, and Vision provider mapping into
 // a real pino logger with the production redact config. No emitted line may
 // carry recognized text, image bytes in any encoding, or service-account key
@@ -68,6 +72,11 @@ function bytePatterns(bytes: Uint8Array): string[] {
   ];
 }
 
+/** Stands in for the tracer: a callback handler attached to every run. */
+class TracingOn extends BaseCallbackHandler {
+  name = 'tracing-on';
+}
+
 class GoogleLikeError extends Error {
   readonly code: number;
   constructor(code: number, message: string) {
@@ -97,7 +106,12 @@ describe('integration: submission lifecycles never log content', () => {
   });
 
   /** Builds the real list flow writing to the shared pino sink. */
-  function buildEnv(opts: { provider: OcrProvider; fetchEntries: ScriptedFetchEntry[] }) {
+  function buildEnv(opts: {
+    provider: OcrProvider;
+    fetchEntries: ScriptedFetchEntry[];
+    categorizer?: ItemCategorizer;
+    callbacks?: BaseCallbackHandler[];
+  }) {
     return buildListFlowEnv({ ...opts, config, logger: sink.logger });
   }
 
@@ -113,6 +127,8 @@ describe('integration: submission lifecycles never log content', () => {
     fetchEntries: ScriptedFetchEntry[];
     attachments?: FakeAttachment[];
     content?: string;
+    categorizer?: ItemCategorizer;
+    callbacks?: BaseCallbackHandler[];
   }): Promise<void> {
     const env = buildEnv(opts);
     try {
@@ -137,6 +153,25 @@ describe('integration: submission lifecycles never log content', () => {
       provider: createStubOcrProvider([okResult(HAPPY_TEXT), okResult(SECOND_PAGE_TEXT)]),
       fetchEntries: [{ body: { bytes: IMAGE_BYTES } }, { body: { bytes: IMAGE_BYTES } }],
       attachments: [PNG, PAGE_2],
+    });
+    // Sorted by the AI step.
+    await run({
+      provider: createStubOcrProvider([okResult(HAPPY_TEXT)]),
+      fetchEntries: [{ body: { bytes: IMAGE_BYTES } }],
+      categorizer: createStubCategorizer([okAnswer(['produce', 'produce', 'dairy-eggs'])]),
+    });
+    // Sorted with tracing on: the trace may carry list text, the logs never.
+    await run({
+      provider: createStubOcrProvider([okResult(HAPPY_TEXT)]),
+      fetchEntries: [{ body: { bytes: IMAGE_BYTES } }],
+      categorizer: createStubCategorizer([okAnswer(['produce', 'produce', 'dairy-eggs'])]),
+      callbacks: [new TracingOn()],
+    });
+    // AI step failed: the noted verbatim fallback.
+    await run({
+      provider: createStubOcrProvider([okResult(HAPPY_TEXT)]),
+      fetchEntries: [{ body: { bytes: IMAGE_BYTES } }],
+      categorizer: createStubCategorizer([failedAnswer('error')]),
     });
     // No readable text.
     await run({
@@ -245,6 +280,7 @@ describe('integration: submission lifecycles never log content', () => {
       'list submission failed',
       'list submission cancelled',
       'list submission rejected busy',
+      'list step',
     ]) {
       expect(msgs, `missing log line: ${expected}`).toContain(expected);
     }

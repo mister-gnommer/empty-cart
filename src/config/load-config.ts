@@ -1,8 +1,13 @@
 // loadConfig — pure validator. Throws ConfigError on first invalid env field.
 // Does NOT log (the composition root owns the fatal
 // log line). The returned Config is frozen.
-import type { Config, OcrProviderConfig } from '../shared/types';
-import { CHANNEL_SNOWFLAKE_PATTERN, configSchema, LANGUAGE_HINT_PATTERN } from './schema';
+import type { Config, OcrProviderConfig, SortingConfig, TracingConfig } from '../shared/types';
+import {
+  CHANNEL_SNOWFLAKE_PATTERN,
+  configSchema,
+  LANGUAGE_HINT_PATTERN,
+  SORTING_MODEL_PATTERN,
+} from './schema';
 
 const FIELD_ORDER = [
   'discordToken',
@@ -289,6 +294,69 @@ function toOcrProviderConfig(
   return Object.freeze({ kind: 'gcp-vision', keyFilePath });
 }
 
+const DEFAULT_LANGSMITH_PROJECT = 'empty-cart';
+
+/**
+ * Treats an empty env value like an absent one, as the sample env file ships
+ * optional fields blank.
+ * @param raw the env value
+ */
+function presentValue(raw: string | undefined): string | undefined {
+  return raw === undefined || raw === '' ? undefined : raw;
+}
+
+/**
+ * Reads the AI sorting fields in documented order. The key and base URL are
+ * only read when sorting is on, so a pre-staged key never breaks boot.
+ * @param env the process environment
+ */
+function loadSorting(env: NodeJS.ProcessEnv): SortingConfig {
+  const model = presentValue(env.SORTING_MODEL);
+  if (model === undefined) {
+    return Object.freeze({ kind: 'none' });
+  }
+  if (!SORTING_MODEL_PATTERN.test(model)) {
+    throw new ConfigError({ envField: 'SORTING_MODEL', reason: 'malformed' });
+  }
+  const apiKey = presentValue(env.SORTING_API_KEY);
+  if (apiKey === undefined) {
+    throw new ConfigError({ envField: 'SORTING_API_KEY', reason: 'missing' });
+  }
+  const baseUrl = presentValue(env.SORTING_BASE_URL) ?? null;
+  // Whitespace or `#` means a trailing env-file comment that systemd kept in the
+  // value; URL.parse would accept it as a path and fragment.
+  if (baseUrl !== null && (/[\s#]/u.test(baseUrl) || URL.parse(baseUrl)?.protocol !== 'https:')) {
+    throw new ConfigError({ envField: 'SORTING_BASE_URL', reason: 'malformed' });
+  }
+  return Object.freeze({ kind: 'anthropic', model, apiKey, baseUrl });
+}
+
+/**
+ * Reads the tracing fields in documented order. Tracing defaults to on for the
+ * test period (issue #16); a missing key degrades to untraced instead of
+ * failing boot. LANGSMITH_TRACING is deliberately never read: setting it would
+ * make LangChain add a second, implicit tracer.
+ * @param env the process environment
+ */
+function loadTracing(env: NodeJS.ProcessEnv): TracingConfig {
+  const mode = presentValue(env.TRACING) ?? 'langsmith';
+  if (mode !== 'langsmith' && mode !== 'off') {
+    throw new ConfigError({ envField: 'TRACING', reason: 'malformed' });
+  }
+  const apiKey = presentValue(env.LANGSMITH_API_KEY);
+  const project = env.LANGSMITH_PROJECT ?? DEFAULT_LANGSMITH_PROJECT;
+  if (project === '') {
+    throw new ConfigError({ envField: 'LANGSMITH_PROJECT', reason: 'malformed' });
+  }
+  if (mode === 'off') {
+    return Object.freeze({ kind: 'off', reason: 'disabled' });
+  }
+  if (apiKey === undefined) {
+    return Object.freeze({ kind: 'off', reason: 'missing-key' });
+  }
+  return Object.freeze({ kind: 'langsmith', apiKey, project });
+}
+
 /** Validate env exactly once; return frozen Config or throw ConfigError. */
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const partial: Record<string, unknown> = {};
@@ -323,9 +391,13 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     throw new ConfigError({ envField: 'UNKNOWN', reason: 'malformed' });
   }
 
+  const sorting = loadSorting(env);
+  const tracing = loadTracing(env);
   const { ocrProvider, gcpSaKeyPath, ...rest } = parsed.data;
   return Object.freeze({
     ...rest,
     ocrProvider: toOcrProviderConfig(ocrProvider, gcpSaKeyPath),
+    sorting,
+    tracing,
   });
 }
