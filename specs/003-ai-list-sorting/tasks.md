@@ -367,3 +367,9 @@ Review `src/shopping-list/list-graph.ts` (T023) and `src/categorizer/agent-categ
 - `[P]` tasks touch different files and have no dependency on incomplete tasks.
 - Commit after each task or logical group, using the repo's `type: summary [003]` style.
 - No task deploys to the VPS or runs live smoke tests (constitution workflow 7). The live eval and bot run happen after merge, owned by the maintainer.
+
+---
+
+## Phase 9: Convergence
+
+- [X] T054 Reword the "One model call per list" note in `docs/deployment.md` §9.1: one agent run per list, which may call the model again after an invalid answer or a failed request, all within the 15 s budget per spec Assumptions: Cost (partial)

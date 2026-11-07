@@ -274,7 +274,7 @@ Notes:
 - **Do not set `LANGSMITH_TRACING`** for the bot. The bot passes its tracer explicitly; that variable would make LangChain add a second one and trace every run twice. It is only for `npm run eval`.
 - **Traces contain list text.** Tracing is on by default only for the initial test period. [Issue #16](https://github.com/mister-gnommer/empty-cart/issues/16) switches the default off afterwards and deletes the test-period traces. Logs never contain list text, traced or not.
 - The AI step has its own 15 s budget on top of the ~25 s recognition budget. Lists over 200 lines skip sorting. Both are fixed in code.
-- One model call per list. There are no cost controls beyond the on/off switch; set a spending limit at the provider (OpenCode) if you want one.
+- One agent run per list. It may call the model again after an invalid answer or a failed request, all within the 15 s budget. There are no cost controls beyond the on/off switch; set a spending limit at the provider (OpenCode) if you want one.
 
 ### 9.2 Behavior
 
