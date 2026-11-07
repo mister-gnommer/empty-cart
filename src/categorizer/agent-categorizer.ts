@@ -31,7 +31,6 @@ export async function createAgentCategorizer(opts: {
     // learn: initChatModel picks the provider package from the "anthropic:" prefix, so swapping providers is a config change
     (await initChatModel(opts.model, {
       apiKey: opts.apiKey,
-      temperature: 0,
       maxRetries: 1,
       // learn: anthropicApiUrl redirects the Anthropic client to an Anthropic-compatible gateway such as OpenCode
       ...(opts.baseUrl === null ? {} : { anthropicApiUrl: opts.baseUrl }),
@@ -72,7 +71,8 @@ export async function createAgentCategorizer(opts: {
         return {
           status: 'failed',
           cause: 'error',
-          errorName: err instanceof Error ? err.name : typeof err,
+          // The class, not `err.name`: the Anthropic SDK's errors all keep the name "Error".
+          errorName: err instanceof Error ? err.constructor.name : typeof err,
         };
       }
     },

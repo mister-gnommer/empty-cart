@@ -1,5 +1,7 @@
-// Contract tests for the agent categorizer over LangChain's scripted fake
-// model: no network, no API key, no initChatModel.
+// Contract tests for the agent categorizer, mostly over LangChain's scripted
+// fake model. One test builds the real model against a local HTTP server.
+import { once } from 'node:events';
+import { createServer } from 'node:http';
 import { AIMessage } from '@langchain/core/messages';
 import { fakeModel } from 'langchain';
 import { describe, expect, it } from 'vitest';
@@ -74,10 +76,14 @@ describe('agent categorizer failures (never throws)', () => {
   });
 
   it('a model error → error with the class name only, never the message', async () => {
+    // Like the Anthropic SDK's errors, it keeps `name` as plain "Error".
+    class AuthenticationError extends Error {}
     const secret = 'request failed for line: milk';
-    const categorizer = await categorizerOver(fakeModel().alwaysThrow(new TypeError(secret)));
+    const categorizer = await categorizerOver(
+      fakeModel().alwaysThrow(new AuthenticationError(secret)),
+    );
     const result = await categorizer.categorize({ items: ['milk'], signal: live() });
-    expect(result).toEqual({ status: 'failed', cause: 'error', errorName: 'TypeError' });
+    expect(result).toEqual({ status: 'failed', cause: 'error', errorName: 'AuthenticationError' });
     expect(JSON.stringify(result)).not.toContain('milk');
   });
 
@@ -85,5 +91,43 @@ describe('agent categorizer failures (never throws)', () => {
     const categorizer = await categorizerOver(answering(ASSIGNMENTS));
     const result = await categorizer.categorize({ items: ITEMS, signal: AbortSignal.abort() });
     expect(result).toMatchObject({ status: 'failed', cause: 'timeout' });
+  });
+
+  it('the real model sends no sampling parameters, which Claude Haiku 5.5 rejects', async () => {
+    const bodies: Record<string, unknown>[] = [];
+    const server = createServer((req, res) => {
+      let raw = '';
+      req.on('data', (chunk) => {
+        raw += chunk;
+      });
+      req.on('end', () => {
+        bodies.push(JSON.parse(raw));
+        // A 400 is not retried, so exactly one request arrives.
+        res.writeHead(400, { 'content-type': 'application/json' });
+        res.end('{"type":"error","error":{"type":"invalid_request_error","message":"stop"}}');
+      });
+    });
+    server.listen(0, '127.0.0.1');
+    await once(server, 'listening');
+    try {
+      const address = server.address();
+      if (address === null || typeof address === 'string') {
+        throw new Error('expected a TCP address');
+      }
+      const categorizer = await createAgentCategorizer({
+        model: MODEL_ID,
+        apiKey: 'test-key',
+        baseUrl: `http://127.0.0.1:${address.port}`,
+      });
+      await categorizer.categorize({ items: ITEMS, signal: AbortSignal.timeout(5_000) });
+
+      expect(bodies).toHaveLength(1);
+      expect(bodies[0]).toMatchObject({ model: 'claude-haiku-5-5' });
+      expect(bodies[0]).not.toHaveProperty('temperature');
+      expect(bodies[0]).not.toHaveProperty('top_p');
+      expect(bodies[0]).not.toHaveProperty('top_k');
+    } finally {
+      server.close();
+    }
   });
 });

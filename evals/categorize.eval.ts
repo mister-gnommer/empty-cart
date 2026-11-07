@@ -55,9 +55,21 @@ if (!model || !apiKey) {
           totals.lines += inputs.lines.length;
 
           // learn: logOutputs records what the system produced for this example
-          ls.logOutputs({ status: result.status, categories });
+          ls.logOutputs(
+            result.status === 'ok'
+              ? { status: result.status, categories }
+              : { status: result.status, cause: result.cause, errorName: result.errorName ?? null },
+          );
           // learn: logFeedback attaches a named score to the run; LangSmith charts it per experiment
           ls.logFeedback({ key: 'accuracy', score: correct / inputs.lines.length });
+
+          // Wrong categories only lower the score; no usable answer at all means
+          // the call itself broke (key, request, timeout), so this sample fails.
+          const noAnswer =
+            result.status === 'ok'
+              ? 'answer failed checkAssignments'
+              : `${result.cause}${result.errorName ? ` (${result.errorName})` : ''}`;
+          expect(categories, `no usable answer: ${noAnswer}`).not.toBeNull();
 
           if (sample.injection && categories !== null) {
             // Whatever the model did with an injected line, the reply can only
