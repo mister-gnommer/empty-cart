@@ -2,6 +2,9 @@
 // so no categorizer, present or future, can skip it.
 import { type CategoryId, isCategoryId } from './category-catalog';
 
+/** One line/category pair as a categorizer returned it, before this check. */
+export type UncheckedAssignment = { line: number; category: string };
+
 /**
  * Accepts the answer only when every line from 1 to `itemCount` appears
  * exactly once with a known category. Takes plain strings on purpose: the
@@ -11,7 +14,7 @@ import { type CategoryId, isCategoryId } from './category-catalog';
  * @returns categories aligned to the items, or null to discard the whole answer
  */
 export function checkAssignments(
-  raw: readonly { line: number; category: string }[],
+  raw: readonly UncheckedAssignment[],
   itemCount: number,
 ): CategoryId[] | null {
   if (raw.length !== itemCount) {

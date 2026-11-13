@@ -6,7 +6,7 @@ import {
   CHANNEL_SNOWFLAKE_PATTERN,
   configSchema,
   LANGUAGE_HINT_PATTERN,
-  SORTING_MODEL_PATTERN,
+  MODEL_STRING_PATTERN,
 } from './schema';
 
 const FIELD_ORDER = [
@@ -315,7 +315,7 @@ function loadSorting(env: NodeJS.ProcessEnv): SortingConfig {
   if (model === undefined) {
     return Object.freeze({ kind: 'none' });
   }
-  if (!SORTING_MODEL_PATTERN.test(model)) {
+  if (!MODEL_STRING_PATTERN.test(model)) {
     throw new ConfigError({ envField: 'SORTING_MODEL', reason: 'malformed' });
   }
   const apiKey = presentValue(env.SORTING_API_KEY);
@@ -328,7 +328,7 @@ function loadSorting(env: NodeJS.ProcessEnv): SortingConfig {
   if (baseUrl !== null && (/[\s#]/u.test(baseUrl) || URL.parse(baseUrl)?.protocol !== 'https:')) {
     throw new ConfigError({ envField: 'SORTING_BASE_URL', reason: 'malformed' });
   }
-  return Object.freeze({ kind: 'anthropic', model, apiKey, baseUrl });
+  return Object.freeze({ kind: 'agent', model, apiKey, baseUrl });
 }
 
 /**

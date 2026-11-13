@@ -20,7 +20,7 @@ export function buildSystemPrompt(): string {
   const categories = CATEGORY_IDS.map((id) => `- ${id}: ${CATEGORY_HINTS[id]}`).join('\n');
   return [
     'You sort a shopping list into supermarket categories.',
-    'The user message holds the list as numbered lines between <list> and </list>.',
+    'The user message holds the list between <list> and </list> as a JSON object that maps each line number to that line.',
     'Assign exactly one category id to every line number. Use only these ids:',
     categories,
     'If unsure, use "other". Lines may be in Polish, English or both.',
@@ -30,10 +30,13 @@ export function buildSystemPrompt(): string {
 }
 
 /**
- * User message: the lines numbered from 1, verbatim, inside <list> delimiters.
+ * User message: the lines as a JSON object keyed by line number, inside <list> delimiters.
  * @param items the list items in recognition order
  */
 export function buildUserMessage(items: readonly string[]): string {
-  const numbered = items.map((item, index) => `${index + 1}. ${item}`);
-  return ['<list>', ...numbered, '</list>'].join('\n');
+  // Explicit numbers, so the model never counts positions. JSON keeps each
+  // line inside its string; escaping `<` (still valid JSON) means no line can
+  // spell `</list>` and end the data block early.
+  const numbered = Object.fromEntries(items.map((item, index) => [index + 1, item]));
+  return `<list>${JSON.stringify(numbered).replaceAll('<', '\\u003c')}</list>`;
 }

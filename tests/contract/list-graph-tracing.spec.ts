@@ -4,7 +4,7 @@
 import { BaseCallbackHandler } from '@langchain/core/callbacks/base';
 import { fakeModel } from 'langchain';
 import { describe, expect, it } from 'vitest';
-import { createAgentCategorizer } from '../../src/categorizer/agent-categorizer';
+import { createAgentBackedCategorizer } from '../../src/categorizer/agent-backed-categorizer';
 import type { ItemCategorizer } from '../../src/categorizer/types';
 import { buildHandler, okFetch, submission } from '../helpers/list-submission-env';
 import { createStubCategorizer, failedAnswer, okAnswer } from '../helpers/stub-categorizer';
@@ -127,7 +127,7 @@ describe('list run tracing', () => {
     const recorder = new RecordingHandler();
     const chatModel = fakeModel().respondWithTools([
       {
-        name: 'extract-1',
+        name: 'extract-categorizer-answer',
         args: {
           assignments: [
             { line: 1, category: 'dairy-eggs' },
@@ -137,7 +137,7 @@ describe('list run tracing', () => {
         id: 'call-1',
       },
     ]);
-    const categorizer = await createAgentCategorizer({
+    const categorizer = await createAgentBackedCategorizer({
       model: 'anthropic:fake',
       apiKey: 'unused',
       baseUrl: null,

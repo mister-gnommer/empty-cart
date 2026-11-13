@@ -23,13 +23,10 @@ export function createTracer(config: TracingConfig): Tracer {
   if (config.kind === 'off') {
     return { callbacks: [], flush: async () => undefined };
   }
-  // learn: the LangSmith Client holds the API key and batches trace uploads in the background
   const client = new Client({ apiKey: config.apiKey });
-  // learn: LangChainTracer is a callback handler: every run it is passed to (and every child run) is recorded and sent to the project
   const tracer = new LangChainTracer({ client, projectName: config.project });
   return {
     callbacks: [tracer],
-    // learn: uploads are batched asynchronously, so pending batches must be awaited before the process exits or they are lost
     flush: () => client.awaitPendingTraceBatches(),
   };
 }

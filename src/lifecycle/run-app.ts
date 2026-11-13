@@ -2,13 +2,12 @@
 // budget. The only module that calls `process.exit`. Startup order, signal
 // handling, shutdown race, no flush, and exit discipline follow the lifecycle
 // contract.
-import { createAgentCategorizer } from '../categorizer/agent-categorizer';
+import { createAgentBackedCategorizer } from '../categorizer/agent-backed-categorizer';
 import type { ItemCategorizer } from '../categorizer/types';
 import { ConfigError, loadConfig } from '../config/load-config';
 import type { DiscordAdapter } from '../discord/adapter';
 import { createDiscordAdapter } from '../discord/adapter';
 import { handleEchoCommand } from '../echo/handle-echo';
-import { createGoogleVisionProvider } from '../ocr/google-vision/provider';
 import { type HealthServer, startHealthServer } from '../health/server';
 import { fetchAndValidateImage } from '../image/fetch-image';
 import {
@@ -17,6 +16,7 @@ import {
   createLogger,
 } from '../logger/create-logger';
 import { createDisabledProvider } from '../ocr/disabled-provider';
+import { createGoogleVisionProvider } from '../ocr/google-vision/provider';
 import type { OcrProvider } from '../ocr/types';
 import { newCorrelationId } from '../shared/correlation-id';
 import type { BotState, ProcessPhase } from '../shared/types';
@@ -192,8 +192,8 @@ export async function runApp(): Promise<void> {
   let categorizer: ItemCategorizer | null;
   try {
     switch (config.sorting.kind) {
-      case 'anthropic':
-        categorizer = await createAgentCategorizer({
+      case 'agent':
+        categorizer = await createAgentBackedCategorizer({
           model: config.sorting.model,
           apiKey: config.sorting.apiKey,
           baseUrl: config.sorting.baseUrl,

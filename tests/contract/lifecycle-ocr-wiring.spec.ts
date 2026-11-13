@@ -63,12 +63,14 @@ async function loadAppWithMocks(opts: {
     return gvProviderSentinel;
   });
   const createDisabledProviderMock = vi.fn((): OcrProvider => disabledProviderSentinel);
-  const createAgentCategorizerMock = vi.fn(async (_opts: unknown): Promise<ItemCategorizer> => {
-    if (opts.categorizerConstructionThrows) {
-      throw new Error('unknown model provider');
-    }
-    return categorizerSentinel;
-  });
+  const createAgentBackedCategorizerMock = vi.fn(
+    async (_opts: unknown): Promise<ItemCategorizer> => {
+      if (opts.categorizerConstructionThrows) {
+        throw new Error('unknown model provider');
+      }
+      return categorizerSentinel;
+    },
+  );
   const createTracerMock = vi.fn((_config: TracingConfig) => ({
     callbacks: callbacksSentinel,
     flush: vi.fn(async () => undefined),
@@ -111,8 +113,8 @@ async function loadAppWithMocks(opts: {
   vi.doMock('../../src/tracing/create-tracer', () => ({
     createTracer: createTracerMock,
   }));
-  vi.doMock('../../src/categorizer/agent-categorizer', () => ({
-    createAgentCategorizer: createAgentCategorizerMock,
+  vi.doMock('../../src/categorizer/agent-backed-categorizer', () => ({
+    createAgentBackedCategorizer: createAgentBackedCategorizerMock,
   }));
   vi.doMock('../../src/shopping-list/handle-list-submission', () => ({
     createListSubmissionHandler: createListSubmissionHandlerMock,
@@ -126,7 +128,7 @@ async function loadAppWithMocks(opts: {
     createDisabledProviderMock,
     createListSubmissionHandlerMock,
     createDiscordAdapterMock,
-    createAgentCategorizerMock,
+    createAgentBackedCategorizerMock,
     createTracerMock,
   };
 }
@@ -219,16 +221,16 @@ describe('categorizer wiring in the composition root', () => {
     void env.runApp();
     await vi.waitFor(() => expect(env.createListSubmissionHandlerMock).toHaveBeenCalled());
 
-    expect(env.createAgentCategorizerMock).not.toHaveBeenCalled();
+    expect(env.createAgentBackedCategorizerMock).not.toHaveBeenCalled();
     expect(env.createListSubmissionHandlerMock.mock.calls[0][0].categorizer).toBeNull();
     expect(env.cap.lines).toContainEqual(expect.objectContaining({ msg: 'sorting disabled' }));
   });
 
-  it('sorting anthropic → the categorizer is built from the configured model, key and base URL', async () => {
+  it('sorting agent → the categorizer is built from the configured model, key and base URL', async () => {
     const env = await loadAppWithMocks({
       config: makeConfig({
         sorting: {
-          kind: 'anthropic',
+          kind: 'agent',
           model: 'anthropic:m',
           apiKey: 'sk-x',
           baseUrl: 'https://opencode.ai/inference/anthropic',
@@ -238,7 +240,7 @@ describe('categorizer wiring in the composition root', () => {
     void env.runApp();
     await vi.waitFor(() => expect(env.createListSubmissionHandlerMock).toHaveBeenCalled());
 
-    expect(env.createAgentCategorizerMock).toHaveBeenCalledWith({
+    expect(env.createAgentBackedCategorizerMock).toHaveBeenCalledWith({
       model: 'anthropic:m',
       apiKey: 'sk-x',
       baseUrl: 'https://opencode.ai/inference/anthropic',
@@ -255,7 +257,7 @@ describe('categorizer wiring in the composition root', () => {
   it('categorizer construction failure → one fatal naming the subsystem + exit 1', async () => {
     const env = await loadAppWithMocks({
       config: makeConfig({
-        sorting: { kind: 'anthropic', model: 'anthropic:m', apiKey: 'k', baseUrl: null },
+        sorting: { kind: 'agent', model: 'anthropic:m', apiKey: 'k', baseUrl: null },
       }),
       categorizerConstructionThrows: true,
     });

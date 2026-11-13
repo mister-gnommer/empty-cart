@@ -1,9 +1,9 @@
-// Operator eval: runs every sample list through the REAL agent categorizer and
+// Operator eval: runs every sample list through the REAL agent-backed categorizer and
 // scores the share of lines that land in the expected category. Costs a few
 // cents per run; never part of `npm test`. Run with `npm run eval`.
 import * as ls from 'langsmith/vitest';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { createAgentCategorizer } from '../src/categorizer/agent-categorizer';
+import { createAgentBackedCategorizer } from '../src/categorizer/agent-backed-categorizer';
 import type { ItemCategorizer } from '../src/categorizer/types';
 import { DEFAULT_SHOP_ORDER } from '../src/list-sorting/category-catalog';
 import { checkAssignments } from '../src/list-sorting/check-assignments';
@@ -24,17 +24,15 @@ if (!model || !apiKey) {
     it('needs a live model', () => undefined);
   });
 } else {
-  // learn: ls.describe groups the tests into one LangSmith dataset; with LANGSMITH_TRACING=true each run becomes an experiment, otherwise it runs locally only
   ls.describe('categorize sample lists', () => {
     let categorizer: ItemCategorizer;
     const totals = { correct: 0, lines: 0 };
 
     beforeAll(async () => {
-      categorizer = await createAgentCategorizer({ model, apiKey, baseUrl });
+      categorizer = await createAgentBackedCategorizer({ model, apiKey, baseUrl });
     });
 
     for (const sample of SAMPLE_LISTS) {
-      // learn: ls.test takes inputs and referenceOutputs; LangSmith stores them as one dataset example, so experiments can be compared line by line
       ls.test(
         sample.name,
         { inputs: { lines: sample.lines }, referenceOutputs: { categories: sample.expected } },
@@ -54,13 +52,11 @@ if (!model || !apiKey) {
           totals.correct += correct;
           totals.lines += inputs.lines.length;
 
-          // learn: logOutputs records what the system produced for this example
           ls.logOutputs(
             result.status === 'ok'
               ? { status: result.status, categories }
               : { status: result.status, cause: result.cause, errorName: result.errorName ?? null },
           );
-          // learn: logFeedback attaches a named score to the run; LangSmith charts it per experiment
           ls.logFeedback({ key: 'accuracy', score: correct / inputs.lines.length });
 
           // Wrong categories only lower the score; no usable answer at all means

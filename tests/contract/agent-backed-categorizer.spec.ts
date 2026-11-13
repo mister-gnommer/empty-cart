@@ -1,11 +1,11 @@
-// Contract tests for the agent categorizer, mostly over LangChain's scripted
+// Contract tests for the agent-backed categorizer, mostly over LangChain's scripted
 // fake model. One test builds the real model against a local HTTP server.
 import { once } from 'node:events';
 import { createServer } from 'node:http';
 import { AIMessage } from '@langchain/core/messages';
 import { fakeModel } from 'langchain';
 import { describe, expect, it } from 'vitest';
-import { createAgentCategorizer } from '../../src/categorizer/agent-categorizer';
+import { createAgentBackedCategorizer } from '../../src/categorizer/agent-backed-categorizer';
 import { CATEGORY_IDS } from '../../src/list-sorting/category-catalog';
 
 const MODEL_ID = 'anthropic:claude-haiku-5-5';
@@ -17,11 +17,18 @@ const ASSIGNMENTS = [
 ];
 
 /**
- * A fake model that answers with the structured-output tool call createAgent expects.
- * @param assignments the answer the model "returns"
+ * A fake model that answers with the structured-output tool call createAgent
+ * expects, one scripted answer per model call.
+ * @param answers the assignments the model "returns", call by call
  */
-function answering(assignments: unknown) {
-  return fakeModel().respondWithTools([{ name: 'extract-1', args: { assignments }, id: 'call-1' }]);
+function answering(...answers: unknown[]) {
+  return answers.reduce(
+    (model: ReturnType<typeof fakeModel>, assignments, index) =>
+      model.respondWithTools([
+        { name: 'extract-categorizer-answer', args: { assignments }, id: `call-${index + 1}` },
+      ]),
+    fakeModel(),
+  );
 }
 
 /**
@@ -29,10 +36,15 @@ function answering(assignments: unknown) {
  * @param chatModel the scripted fake model
  */
 function categorizerOver(chatModel: ReturnType<typeof fakeModel>) {
-  return createAgentCategorizer({ model: MODEL_ID, apiKey: 'unused', baseUrl: null, chatModel });
+  return createAgentBackedCategorizer({
+    model: MODEL_ID,
+    apiKey: 'unused',
+    baseUrl: null,
+    chatModel,
+  });
 }
 
-describe('agent categorizer', () => {
+describe('agent-backed categorizer', () => {
   it('a valid structured answer comes back as ok with the assignments unchanged', async () => {
     const categorizer = await categorizerOver(answering(ASSIGNMENTS));
     const result = await categorizer.categorize({
@@ -43,7 +55,7 @@ describe('agent categorizer', () => {
     expect(categorizer.id).toBe(MODEL_ID);
   });
 
-  it('sends every category id as instructions and every line verbatim, numbered, as delimited data', async () => {
+  it('sends every category id as instructions and every line verbatim under its line number, as delimited data', async () => {
     const model = answering(ASSIGNMENTS);
     const categorizer = await categorizerOver(model);
     await categorizer.categorize({ items: ITEMS, signal: new AbortController().signal });
@@ -52,18 +64,32 @@ describe('agent categorizer', () => {
     for (const id of CATEGORY_IDS) {
       expect(system.text).toContain(id);
     }
-    expect(user.text).toContain(`<list>\n1. ${ITEMS[0]}\n2. ${ITEMS[1]}\n3. ${ITEMS[2]}\n</list>`);
+    const block = user.text.match(/^<list>(.*)<\/list>$/su);
+    expect(JSON.parse(block?.[1] ?? 'null')).toEqual({ 1: ITEMS[0], 2: ITEMS[1], 3: ITEMS[2] });
   });
 });
 
-describe('agent categorizer failures (never throws)', () => {
+describe('agent-backed categorizer failures (never throws)', () => {
   const live = () => new AbortController().signal;
 
-  it('an unknown category the model never corrects → invalid-answer', async () => {
-    const categorizer = await categorizerOver(answering([{ line: 1, category: 'snacks' }]));
+  it('a model that keeps answering in the wrong shape → invalid-answer after three model calls', async () => {
+    const unknownCategory = [{ line: 1, category: 'snacks' }];
+    // A fourth answer is queued so that only the cap, not the script running out, can stop the run.
+    const model = answering(unknownCategory, unknownCategory, unknownCategory, unknownCategory);
+    const categorizer = await categorizerOver(model);
     expect(await categorizer.categorize({ items: ['chips'], signal: live() })).toEqual({
       status: 'failed',
       cause: 'invalid-answer',
+    });
+    expect(model.calls).toHaveLength(3);
+  });
+
+  it('a schema-invalid answer corrected on the retry → ok', async () => {
+    const model = answering([{ line: 1, category: 'snacks' }], [{ line: 1, category: 'pantry' }]);
+    const categorizer = await categorizerOver(model);
+    expect(await categorizer.categorize({ items: ['chips'], signal: live() })).toEqual({
+      status: 'ok',
+      assignments: [{ line: 1, category: 'pantry' }],
     });
   });
 
@@ -93,6 +119,17 @@ describe('agent categorizer failures (never throws)', () => {
     expect(result).toMatchObject({ status: 'failed', cause: 'timeout' });
   });
 
+  it('an unsupported model provider fails construction, naming the provider', async () => {
+    await expect(
+      createAgentBackedCategorizer({
+        model: 'openai:gpt-x',
+        apiKey: 'unused',
+        baseUrl: null,
+        chatModel: answering(ASSIGNMENTS),
+      }),
+    ).rejects.toThrow('unsupported model provider "openai"');
+  });
+
   it('the real model sends no sampling parameters, which Claude Haiku 5.5 rejects', async () => {
     const bodies: Record<string, unknown>[] = [];
     const server = createServer((req, res) => {
@@ -114,7 +151,7 @@ describe('agent categorizer failures (never throws)', () => {
       if (address === null || typeof address === 'string') {
         throw new Error('expected a TCP address');
       }
-      const categorizer = await createAgentCategorizer({
+      const categorizer = await createAgentBackedCategorizer({
         model: MODEL_ID,
         apiKey: 'test-key',
         baseUrl: `http://127.0.0.1:${address.port}`,

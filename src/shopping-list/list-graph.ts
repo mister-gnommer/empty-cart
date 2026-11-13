@@ -24,11 +24,8 @@ export const SORTING_BUDGET_MS = 15_000;
 
 const CategoryIdSchema = z.enum(CATEGORY_IDS);
 
-// learn: StateSchema declares the graph's shared state; every node reads the whole state and returns only the fields it changes
 const ListState = new StateSchema({
-  // learn: shopOrder is graph input, not a constant inside a node, so a later "choose store" node can fill it instead
   shopOrder: z.array(CategoryIdSchema),
-  // learn: .default() gives a field its value before any node writes it; a node's write replaces it (no reducer)
   readablePages: z.array(z.string()).default([]),
   items: z.array(z.string()).default([]),
   categories: z.array(CategoryIdSchema).nullable().default(null),
@@ -39,7 +36,6 @@ const ListState = new StateSchema({
   reply: z.string().nullable().default(null),
 });
 
-// learn: the context schema types per-run dependencies passed at invoke time; they are not state, so they are never traced or persisted as data
 const ListContext = z.object({
   log: z.custom<Logger>(),
   // Context, not state: an attachment URL opens the photo until it expires, and traces record state.
@@ -116,7 +112,6 @@ export function buildListGraph(deps: ListGraphDeps) {
     return { sortingFailure: cause };
   }
 
-  // learn: a node is a plain async function (state, config) → partial state update; config.context carries the invoke-time context
   const recognize: ListNode = async (_state, config) => {
     const { log, attachments } = contextOf(config.context);
     const startedAt = now();
@@ -195,38 +190,30 @@ export function buildListGraph(deps: ListGraphDeps) {
     return { reply: `${LIST_MESSAGES.sortingFailedNote}\n${verbatim}` };
   };
 
-  // learn: the second StateGraph argument is the context schema, which types config.context in every node
-  return (
-    new StateGraph(ListState, ListContext)
-      // learn: addNode registers a step under a name; the name is what traces and edges refer to
-      .addNode('recognize', recognize)
-      .addNode('categorize', categorize)
-      .addNode('sort', sort)
-      .addNode('unsorted', unsorted)
-      // learn: START is the virtual entry point; this edge makes recognize the first step
-      .addEdge(START, 'recognize')
-      // learn: a conditional edge runs a router on the state and follows the node name it returns; the list names every possible target
-      .addConditionalEdges(
-        'recognize',
-        (state) => {
-          if (state.reply !== null) {
-            return END;
-          }
-          return categorizer === null ? 'unsorted' : 'categorize';
-        },
-        ['categorize', 'unsorted', END],
-      )
-      .addConditionalEdges(
-        'categorize',
-        (state) => (state.categories === null ? 'unsorted' : 'sort'),
-        ['sort', 'unsorted'],
-      )
-      // learn: END is the virtual exit; reaching it ends invoke() and returns the final state
-      .addEdge('sort', END)
-      .addEdge('unsorted', END)
-      // learn: compile() freezes the wiring into a runnable; no checkpointer, so the state is gone once invoke returns
-      .compile()
-  );
+  return new StateGraph(ListState, ListContext)
+    .addNode('recognize', recognize)
+    .addNode('categorize', categorize)
+    .addNode('sort', sort)
+    .addNode('unsorted', unsorted)
+    .addEdge(START, 'recognize')
+    .addConditionalEdges(
+      'recognize',
+      (state) => {
+        if (state.reply !== null) {
+          return END;
+        }
+        return categorizer === null ? 'unsorted' : 'categorize';
+      },
+      ['categorize', 'unsorted', END],
+    )
+    .addConditionalEdges(
+      'categorize',
+      (state) => (state.categories === null ? 'unsorted' : 'sort'),
+      ['sort', 'unsorted'],
+    )
+    .addEdge('sort', END)
+    .addEdge('unsorted', END)
+    .compile();
 }
 
 export type ListGraph = ReturnType<typeof buildListGraph>;

@@ -30,12 +30,12 @@ export type OcrProviderConfig =
 export type SortingConfig =
   | Readonly<{ kind: 'none' }>
   | Readonly<{
-      kind: 'anthropic';
-      /** Full `provider:model` string, e.g. `anthropic:claude-haiku-5-5`. */
+      kind: 'agent';
+      /** `provider:model` string, passed through to the categorizer as is. */
       model: string;
-      /** Secret: an OpenCode key when `baseUrl` points at OpenCode. */
+      /** Secret for whatever endpoint serves the model. */
       apiKey: string;
-      /** null = the provider's own API. */
+      /** null = the provider's default endpoint. */
       baseUrl: string | null;
     }>;
 

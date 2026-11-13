@@ -294,7 +294,7 @@ describe('loadConfig', () => {
         'missing',
       );
     });
-    it('model, key and OpenCode base URL → anthropic sorting config', () => {
+    it('model, key and OpenCode base URL → agent sorting config', () => {
       const cfg = loadConfig({
         ...VALID,
         SORTING_MODEL: HAIKU,
@@ -302,7 +302,7 @@ describe('loadConfig', () => {
         SORTING_BASE_URL: OPENCODE,
       });
       expect(cfg.sorting).toEqual({
-        kind: 'anthropic',
+        kind: 'agent',
         model: HAIKU,
         apiKey: 'sk-test',
         baseUrl: OPENCODE,
@@ -310,13 +310,20 @@ describe('loadConfig', () => {
     });
     it('no base URL → the provider API (null)', () => {
       const cfg = loadConfig({ ...VALID, SORTING_MODEL: HAIKU, SORTING_API_KEY: 'k' });
-      expect(cfg.sorting).toEqual({ kind: 'anthropic', model: HAIKU, apiKey: 'k', baseUrl: null });
+      expect(cfg.sorting).toEqual({ kind: 'agent', model: HAIKU, apiKey: 'k', baseUrl: null });
     });
     it('empty model → sorting off, and a pre-staged key is dropped', () => {
       const cfg = loadConfig({ ...VALID, SORTING_MODEL: '', SORTING_API_KEY: 'k' });
       expect(cfg.sorting).toEqual({ kind: 'none' });
     });
-    it.each(['openai:gpt-x', 'anthropic:', 'anthropic', 'anthropic: x'])(
+    it.each(['openai:gpt-x', 'azure_openai:gpt-x'])(
+      'a well-formed model string from any provider (%j) is passed through as is',
+      (model) => {
+        const cfg = loadConfig({ ...VALID, SORTING_MODEL: model, SORTING_API_KEY: 'k' });
+        expect(cfg.sorting).toEqual({ kind: 'agent', model, apiKey: 'k', baseUrl: null });
+      },
+    );
+    it.each(['anthropic:', 'anthropic', 'anthropic: x', 'Anthropic:x', ':x'])(
       'malformed model %j → malformed SORTING_MODEL',
       (model) => {
         expectError(

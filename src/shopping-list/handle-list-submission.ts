@@ -168,14 +168,11 @@ async function processList(
 ): Promise<ListReply> {
   const { attachments } = input;
   const startedAt = deps.now();
-  // learn: invoke runs the graph from START to END and returns the final state; context is per-run and never part of the state
   const state = await deps.graph.invoke(
     { shopOrder: [...DEFAULT_SHOP_ORDER] },
     {
       context: { log, attachments },
-      // learn: callbacks given to invoke are inherited by every child run (each node, and the agent's model call inside categorize), so one trace shows the whole submission
       callbacks: deps.callbacks,
-      // learn: runName names the root run in the trace; metadata is attached to it and searchable in LangSmith
       runName: 'list-submission',
       metadata: { correlationId: input.correlationId },
     },
