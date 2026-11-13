@@ -28,6 +28,10 @@ export const LANGUAGE_HINT_PATTERN = /^[A-Za-z]{2,3}(-[A-Za-z0-9]{1,8})*$/u;
 // Discord channel snowflake.
 export const CHANNEL_SNOWFLAKE_PATTERN = /^\d{17,20}$/u;
 
+// `provider:model` shape only; the categorizer decides which providers it
+// supports. The model name is opaque but may not hold whitespace.
+export const MODEL_STRING_PATTERN = /^[a-z][a-z0-9_-]*:\S+$/u;
+
 export const configSchema = z.object({
   discordToken: z.string().min(1, 'discordToken must be non-empty'),
   logLevel: logLevel.default('info'),

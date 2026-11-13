@@ -1,5 +1,7 @@
 // Handler-level harness for the list-submission orchestrator: the REAL handler
 // over the stub OCR provider and a scripted fetchImage seam — zero network.
+import type { BaseCallbackHandler } from '@langchain/core/callbacks/base';
+import type { ItemCategorizer } from '../../src/categorizer/types';
 import type { ImageFetchInput, ImageFetchResult } from '../../src/image/fetch-image';
 import type { OcrImageFormat } from '../../src/ocr/types';
 import {
@@ -51,7 +53,8 @@ export function submission(
 /**
  * Builds the handler over a stub provider answering `script` and a fetchImage
  * seam answering `fetch`, both in call order; running past either script rejects.
- * @param opts now defaults to a frozen clock, so every budget is exactly SUBMISSION_BUDGET_MS
+ * @param opts now defaults to a frozen clock, so every budget is exactly SUBMISSION_BUDGET_MS;
+ *   categorizer defaults to null (sorting off); callbacks to none (untraced)
  */
 export function buildHandler(
   opts: {
@@ -59,6 +62,8 @@ export function buildHandler(
     fetch?: FetchScriptEntry[];
     languageHints?: readonly string[];
     now?: () => number;
+    categorizer?: ItemCategorizer | null;
+    callbacks?: BaseCallbackHandler[];
   } = {},
 ) {
   const cap = makeCapturingLogger();
@@ -76,6 +81,8 @@ export function buildHandler(
       return typeof entry === 'function' ? entry(input) : entry;
     },
     languageHints: opts.languageHints ?? ['en'],
+    categorizer: opts.categorizer ?? null,
+    callbacks: opts.callbacks ?? [],
     // Safe: the capturing logger satisfies pino's Logger call surface
     // structurally; `as never` only bridges the nominal pino import.
     logger: cap.logger as never,
