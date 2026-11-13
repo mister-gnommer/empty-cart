@@ -20,6 +20,8 @@ export SORTING_API_KEY=...          # OpenCode key, never commit
 npm run eval
 ```
 
+Or put the three `SORTING_*` lines (without `export`) in `.env` at the repo root, which is gitignored: `npm run eval` loads it, and variables already set in the shell win. *Added 2026-11-14*: the exports were lost with the terminal, so the setup had to be rediscovered.
+
 **Expected**:
 - a table with one row per sample list (≥ 10) and an `accuracy` column;
 - an overall accuracy line ≥ 0.90 (SC-002);
@@ -44,4 +46,4 @@ Set `SORTING_MODEL`, `SORTING_BASE_URL` and `SORTING_API_KEY`, plus `LANGSMITH_A
 
 ## 4. Learning pass
 
-`grep -rn "learn:" src evals` lists every annotated LangGraph, LangChain and LangSmith call. The suggested reading order is `src/shopping-list/list-graph.ts` → `src/categorizer/agent-categorizer.ts` → `evals/categorize.eval.ts`.
+~~`grep -rn "learn:" src evals` lists every annotated LangGraph, LangChain and LangSmith call.~~ *Superseded 2026-11-13 (PR review)*: the learning pass is done and the `learn:` comments are removed. The reading order stays useful: `src/shopping-list/list-graph.ts` → `src/categorizer/agent-backed-categorizer.ts` → `evals/categorize.eval.ts`.

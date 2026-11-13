@@ -27,7 +27,7 @@ All entities are transient: they live for one submission and none is persisted (
 
 ## Category assignment
 
-- **Raw (from the model)**: `{ line: number; category: CategoryId }[]`.
+- **Raw (from the model)**: `{ line: number; category: CategoryId }[]`. The categorizer interface passes it on as `UncheckedAssignment[]` (`{ line: number; category: string }`), the input type `checkAssignments` owns.
 - **Checked (`checkAssignments(raw, itemCount)`)** returns `CategoryId[]` aligned to items, or `null`. The answer is accepted only when:
   1. its length equals `itemCount`;
   2. every `line` is an integer from 1 to `itemCount`;

@@ -10,10 +10,10 @@
 type SortingConfig =
   | Readonly<{ kind: 'none' }>
   | Readonly<{
-      kind: 'anthropic';
-      model: string;            // full 'anthropic:<name>' string
-      apiKey: string;           // secret: an OpenCode key when baseUrl points at OpenCode
-      baseUrl: string | null;   // null = the provider's own API
+      kind: 'agent';
+      model: string;            // 'provider:model' string, passed through to the categorizer as is
+      apiKey: string;           // secret for whatever endpoint serves the model
+      baseUrl: string | null;   // null = the provider's default endpoint
     }>;
 
 type TracingConfig =
@@ -23,11 +23,13 @@ type TracingConfig =
 type Config = Readonly<{ /* ...002 fields... */ sorting: SortingConfig; tracing: TracingConfig }>;
 ```
 
+*Superseded 2026-11-13 (PR review)*: `kind: 'anthropic'` became `kind: 'agent'`. Like `gcp-vision` for OCR, `kind` names the implementation (the agent-backed categorizer), not the provider; the provider comes from the model string, and only the categorizer interprets it.
+
 ## Env mapping & validation
 
 | Env var | Field | Rule |
 |---|---|---|
-| `SORTING_MODEL` | `sorting.kind` / `sorting.model` | Optional. Absent or empty → `{ kind: 'none' }` (sorting off). Otherwise it must match `^<provider>:<name>$`, where `<provider>` is a supported kind (today only `anthropic`) and `<name>` is non-empty with no whitespace. Anything else → `malformed`. |
+| `SORTING_MODEL` | `sorting.kind` / `sorting.model` | Optional. Absent or empty → `{ kind: 'none' }` (sorting off). Otherwise it must match `MODEL_STRING_PATTERN` (`^[a-z][a-z0-9_-]*:\S+$`): a lowercase provider (LangChain ids such as `azure_openai` included), a colon and a non-empty name with no whitespace. Anything else → `malformed`. Config does not check that the provider is supported; the categorizer rejects an unsupported one at construction, which also stops startup. *Superseded 2026-11-13 (PR review)*: the pattern hard-coded `anthropic`. |
 | `SORTING_API_KEY` | `sorting.apiKey` | **Required iff sorting is on**: absent or empty → `missing`. Ignored when sorting is off. Secret. |
 | `SORTING_BASE_URL` | `sorting.baseUrl` | Optional; absent or empty → `null`. Must be an absolute `https:` URL with no whitespace and no `#` → else `malformed`. The second rule catches a trailing `# comment`, which systemd's `EnvironmentFile` keeps as part of the value and `URL.parse` would otherwise accept. *Revised 2026-11-07 (code review)*: added after the deployment guide's own sample line passed startup with a broken URL. The maintainer's value: `https://opencode.ai/inference/anthropic`. |
 | `TRACING` | `tracing.kind` | Optional; default **`langsmith`** (test period, issue #16). The value `off` gives `{ kind: 'off', reason: 'disabled' }`. Anything else → `malformed`. |
@@ -38,7 +40,7 @@ type Config = Readonly<{ /* ...002 fields... */ sorting: SortingConfig; tracing:
 2. **Secrets**: `*.apiKey` and `*.*.apiKey` are added to the logger's `REDACT_PATHS`. Neither key is ever logged, including in `ConfigError` text.
 3. **`LANGSMITH_TRACING` is not read** by config. It MUST NOT be set for the bot, or LangChain adds its own env tracer and every run is traced twice. It is only for the eval command. `.env.example` says so.
 4. `run-app.ts`:
-   - It builds the categorizer exhaustively over `sorting.kind`: `none` → `null`; `anthropic` → `await createAgentCategorizer(...)`. A construction failure is fatal at startup, following the OCR provider pattern.
+   - It builds the categorizer exhaustively over `sorting.kind`: `none` → `null`; `agent` → `await createAgentBackedCategorizer(...)`. A construction failure is fatal at startup, following the OCR provider pattern.
    - It always calls `createTracer(config.tracing)`, which returns no callbacks for `off`. It logs exhaustively over `tracing`:
      - `langsmith` → `{ msg: 'tracing enabled', project }` at `info`;
      - `off`/`missing-key` → `{ msg: 'tracing disabled', reason: 'missing-key' }` at `warn`;
@@ -51,5 +53,5 @@ type Config = Readonly<{ /* ...002 fields... */ sorting: SortingConfig; tracing:
 - Defaults: only `DISCORD_TOKEN` set → `sorting.kind === 'none'`, `tracing` = `{ kind: 'off', reason: 'missing-key' }`.
 - `LANGSMITH_API_KEY` set, `TRACING` absent → `langsmith`, project `empty-cart`. `TRACING=off` → `off`/`disabled` even with a key. `TRACING=yes` → `malformed`.
 - `SORTING_MODEL=anthropic:claude-haiku-5-5` without `SORTING_API_KEY` → `missing SORTING_API_KEY`. With the key and `SORTING_BASE_URL=https://opencode.ai/inference/anthropic` → parsed.
-- `SORTING_MODEL=openai:gpt-x`, `anthropic:`, `anthropic` and `anthropic: x` → `malformed`. `SORTING_BASE_URL=http://…`, `opencode.ai` or `https://opencode.ai/inference/anthropic   # OpenCode` → `malformed`.
+- `SORTING_MODEL=openai:gpt-x` → parsed (the categorizer rejects it). `anthropic:`, `anthropic`, `anthropic: x` and `Anthropic:x` → `malformed`. `SORTING_BASE_URL=http://…`, `opencode.ai` or `https://opencode.ai/inference/anthropic   # OpenCode` → `malformed`.
 - A logged config object shows `[Redacted]` for both keys.

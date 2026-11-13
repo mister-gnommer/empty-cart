@@ -4,7 +4,7 @@
 
 ### No retry when the categorizer's answer fails `checkAssignments` (2026-11-07)
 
-**Today:** the model answers through a tool call, and LangChain's `createAgent` checks the answer against the schema. If the shape or a category is wrong, it sends the error back and the model tries again. If the answer passes the schema but fails `checkAssignments` (wrong number of lines, or a line missing, repeated or out of range), the list goes straight to the unsorted fallback with no retry.
+**Today:** the model answers through a tool call, and LangChain's `createAgent` checks the answer against the schema. If the shape or a category is wrong, it sends the error back and the model tries again, up to two retries (three model calls per list, capped since 2026-11-13). If the answer passes the schema but fails `checkAssignments` (wrong number of lines, or a line missing, repeated or out of range), the list goes straight to the unsorted fallback with no retry.
 
 **Why not retry:** LangChain checks answers against the JSON Schema it builds from the zod schema, so a zod `.refine` is dropped. JSON Schema can't say "each line number exactly once" for an array of `{ line, category }` objects, so the retry can't be extended to those mistakes just by tightening the schema. The other options cost more than a failure we haven't seen yet.
 

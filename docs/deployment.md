@@ -262,7 +262,7 @@ LANGSMITH_API_KEY=<LangSmith key>
 
 | Variable | Required | Validation | Default | Secret |
 |---|---|---|---|---|
-| `SORTING_MODEL` | no | `anthropic:<model>`, no whitespace | unset = sorting off | no |
+| `SORTING_MODEL` | no | `<provider>:<model>`, no whitespace; supported provider today: `anthropic` | unset = sorting off | no |
 | `SORTING_API_KEY` | iff `SORTING_MODEL` is set | non-empty | — | **yes** |
 | `SORTING_BASE_URL` | no | absolute `https:` URL, no whitespace or `#` | unset = the provider's own API | no |
 | `TRACING` | no | `langsmith\|off` | `langsmith` (test period) | no |
@@ -274,7 +274,7 @@ Notes:
 - **Do not set `LANGSMITH_TRACING`** for the bot. The bot passes its tracer explicitly; that variable would make LangChain add a second one and trace every run twice. It is only for `npm run eval`.
 - **Traces contain list text.** Tracing is on by default only for the initial test period. [Issue #16](https://github.com/mister-gnommer/empty-cart/issues/16) switches the default off afterwards and deletes the test-period traces. Logs never contain list text, traced or not.
 - The AI step has its own 15 s budget on top of the ~25 s recognition budget. Lists over 200 lines skip sorting. Both are fixed in code.
-- One agent run per list. It may call the model again after an invalid answer or a failed request, all within the 15 s budget. There are no cost controls beyond the on/off switch; set a spending limit at the provider (OpenCode) if you want one.
+- One agent run per list, with at most three model calls: up to two retries after answers of the wrong shape. Each call may also resend a failed request once. All of it fits in the 15 s budget. There are no cost controls beyond the on/off switch; set a spending limit at the provider (OpenCode) if you want one.
 
 ### 9.2 Behavior
 
@@ -284,7 +284,7 @@ Notes:
 | Sorting on, model answered validly | Grouped list under `**Category**` headings |
 | Model unreachable, slow (> 15 s), invalid answer, or list > 200 lines | *"I couldn't sort this list this time, so here it is as written:"* followed by the recognized text |
 
-A model that cannot be built (unknown provider in `SORTING_MODEL`) fails startup with one `fatal` line, `msg="list categorizer failed to construct: …"`. A bad API key or a down gateway only shows up per list, as the fallback above.
+A model that cannot be built (for example an unsupported provider in `SORTING_MODEL`, which gives `unsupported model provider "<provider>"`) fails startup with one `fatal` line, `msg="list categorizer failed to construct: …"`. A bad API key or a down gateway only shows up per list, as the fallback above.
 
 ### 9.3 Viewing sorting activity
 

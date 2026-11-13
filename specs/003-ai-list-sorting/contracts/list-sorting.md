@@ -17,8 +17,9 @@ const DEFAULT_SHOP_ORDER: readonly CategoryId[];        // data-model.md order
 const CATEGORY_LABELS: Readonly<Record<CategoryId, string>>;
 
 function splitItems(readablePages: readonly string[]): string[];
+type UncheckedAssignment = { line: number; category: string };   // the categorizer's answer before the check
 function checkAssignments(
-  raw: readonly { line: number; category: string }[],
+  raw: readonly UncheckedAssignment[],
   itemCount: number,
 ): CategoryId[] | null;
 function sortByShopOrder(

@@ -14,9 +14,9 @@
 
 ## R2. Categorization: `createAgent` with `responseFormat`, no tools
 
-- **Decision**: In `src/categorizer/agent-categorizer.ts`, call `createAgent({ model, tools: [], systemPrompt, responseFormat: CategorizedLines })`, where `CategorizedLines = z.object({ assignments: z.array(z.object({ line: z.number().int(), category: z.enum(CATEGORY_IDS) })) })`. Read `result.structuredResponse`.
+- **Decision**: In `src/categorizer/agent-categorizer.ts`, call `createAgent({ model, tools: [], systemPrompt, responseFormat: CategorizedLines })`, where `CategorizedLines = z.object({ assignments: z.array(z.object({ line: z.number().int(), category: z.enum(CATEGORY_IDS) })) })`. Read `result.structuredResponse`. *Superseded 2026-11-13 (PR review)*: the file is `agent-backed-categorizer.ts`; the schema is `CategorizerAnswer` in `categorizer-answer-schema.ts`, with a fixed title (the structured-output tool name) and field descriptions. The invoke config's `recursionLimit: 3` caps the run at three model calls, and the resulting `GraphRecursionError` maps to `invalid-answer`. `modelCallLimitMiddleware` was tried first and rejected: in langchain 1.6.0 the retry's jump back to the model and the middleware's fixed edge run in parallel, so even a corrected answer caused an extra call or an `UntrackedValue` error. LangChain's default handler re-asks the model after every schema failure with no limit of its own, so a model that kept failing was called until the budget or LangGraph's step limit stopped it, and the failure was logged as `timeout` or `error`, never `invalid-answer`.
 - **Rationale**: This is the smallest real agent. Without tools the loop normally ends after one model turn. Its schema-error retry is the first visible "loop" behavior, and the next feature adds tools to the same agent. LangChain picks provider-native structured output when the model supports it and tool-calling otherwise. The code doesn't care which.
-- **Why line numbers, not echoed text**: the model returns `line` numbers (1-based, matching the numbered prompt), so item text never comes from the model (FR-002). A missing, duplicate or out-of-range line makes the whole answer invalid (FR-006).
+- **Why line numbers, not echoed text**: the model returns `line` numbers (1-based, the keys of the JSON object in the prompt), so item text never comes from the model (FR-002). A missing, duplicate or out-of-range line makes the whole answer invalid (FR-006).
 - **Alternatives considered**:
   - `model.withStructuredOutput(schema)`: a simpler single call. See Complexity Tracking.
   - Returning a `category[]` aligned by position: harder to validate, because a silently skipped line would shift every following category.
@@ -25,7 +25,7 @@
 ## R3. Model and provider: `initChatModel("anthropic:claude-haiku-5-5")` through OpenCode
 
 - **Decision**: Config value `SORTING_MODEL` in `provider:model` form, passed to `initChatModel(model, { apiKey, anthropicApiUrl: baseUrl, maxRetries: 1 })`. Supported provider today: `anthropic` (package `@langchain/anthropic` 1.6.0). Model: `claude-haiku-5-5`. It is fast, cheap and good at short multilingual classification. The maintainer routes it through **OpenCode**: `SORTING_BASE_URL=https://opencode.ai/inference/anthropic` (OpenCode's Anthropic Messages endpoint), with `SORTING_API_KEY` holding the OpenCode key. Leaving `SORTING_BASE_URL` unset talks to Anthropic directly with an Anthropic key, with no code change.
-- **Rationale**: The `provider:model` string is LangChain's standard way to swap models (constitution: external dependency behind an interface plus config). Adding a provider means installing its `@langchain/*` package and adding one enum arm to config. No sampling parameters: the answer is constrained by the category enum in the structured-output schema. `maxRetries: 1` stays within the 15 s budget. *Superseded 2026-11-07 (live eval)*: `temperature: 0` dropped; Claude Haiku 5.5 rejects any `temperature` other than 1 with a 400, so every call failed.
+- **Rationale**: The `provider:model` string is LangChain's standard way to swap models (constitution: external dependency behind an interface plus config). Adding a provider means installing its `@langchain/*` package and adding one enum arm to config. *Superseded 2026-11-13 (PR review)*: config checks only the `provider:model` shape; the categorizer's endpoint-options table is the one place that lists the supported providers and how each takes a custom endpoint, and construction fails for any other provider. No sampling parameters: the answer is constrained by the category enum in the structured-output schema. `maxRetries: 1` stays within the 15 s budget. *Superseded 2026-11-07 (live eval)*: `temperature: 0` dropped; Claude Haiku 5.5 rejects any `temperature` other than 1 with a 400, so every call failed.
 - **Verified**:
   - `initChatModel('anthropic:…')` constructs under CommonJS; the provider package is loaded with a dynamic import.
   - OpenCode lists `claude-haiku-5-5` on `https://opencode.ai/inference/anthropic/v1/messages`.
@@ -34,11 +34,11 @@
   - *Verified 2026-11-07 (first live eval)*: a successful call through OpenCode, 72 of 73 sample lines correct. Structured output goes through `createAgent`'s tool-calling strategy, because the model profile reports no native structured output. The same run found that `temperature: 0` returns a 400 on Claude Haiku 5.5, so no sampling parameters are sent (T055).
 - **Alternatives considered**:
   - OpenCode's OpenAI-compatible endpoint with `@langchain/openai`: it works for any model, but for a Claude model it adds a translation layer. The Anthropic-native endpoint is kept.
-  - Gemini or OpenAI directly: install their package and add one config arm.
+  - Gemini or OpenAI directly: install their package and add one config arm. *Superseded 2026-11-13 (PR review)*: install the package, allow it in the categorizer's Biome import rule, and add one row to the categorizer's endpoint-options table; config needs no change.
 
 ## R4. Prompt-injection posture
 
-- **Decision**: The system prompt says list lines are data and must never be followed as instructions. Lines go in the user message, numbered, inside a `<list>…</list>` block. The real protection is structural: the model can only return line numbers and category IDs, and `checkAssignments` rejects anything else (FR-011). The worst an injected line can do is pick its own category or cause an invalid answer, which leads to the fallback.
+- **Decision**: The system prompt says list lines are data and must never be followed as instructions. Lines go in the user message, numbered, inside a `<list>…</list>` block. *Superseded 2026-11-13 (PR review)*: the lines go in as a JSON array of strings with every `<` escaped as `\u003c`, so no line can close the block or start a new one; line number = array index + 1. A fixed tag let a line holding `</list>` end the data block early. *Revised 2026-11-14 (code review)*: a JSON object keyed by line number (`{"1": "milk", …}`) instead of an array, so the model reads each number instead of counting positions. The real protection is structural: the model can only return line numbers and category IDs, and `checkAssignments` rejects anything else (FR-011). The worst an injected line can do is pick its own category or cause an invalid answer, which leads to the fallback.
 - **Alternatives considered**: input sanitizing or keyword filters. Rejected because they are brittle, and they would also change item text, which breaks verbatim fidelity.
 
 ## R5. Timeouts and failure mapping
@@ -83,6 +83,6 @@
 ## R10. Testing without a live model
 
 - **Decision**:
-  - Contract tests for `agent-categorizer` use `fakeModel()` from `langchain`. It scripts a structured answer, an invalid answer, a thrown error and a slow response.
+  - Contract tests for the agent-backed categorizer (`agent-categorizer` before 2026-11-13) use `fakeModel()` from `langchain`. It scripts a structured answer, an invalid answer, a thrown error and a slow response.
   - Graph and integration tests inject `tests/helpers/stub-categorizer.ts`, which implements `ItemCategorizer` directly, so they never touch LangChain.
 - **Verified**: the probe ran `createAgent` with `responseFormat` against `fakeModel().respondWithTools([...])` and got the expected `structuredResponse`.

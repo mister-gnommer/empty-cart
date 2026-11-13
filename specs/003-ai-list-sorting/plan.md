@@ -10,7 +10,7 @@ After OCR, the list is split into one item per non-blank line. An LLM agent assi
 
 The list flow becomes a small **LangGraph `StateGraph`** with four nodes: `recognize`, `categorize`, `sort` and `unsorted`, joined by two conditional edges. The `categorize` node calls a **LangChain `createAgent`** agent that has no tools and returns zod-typed structured output. **LangSmith** is used two ways: per-step tracing through an explicit `LangChainTracer` callback, **on by default** for the test period (issue #16 switches it off later), and a `langsmith/vitest` eval suite over synthetic sample lists. Model calls go through **OpenCode**'s Anthropic-compatible gateway to `claude-haiku-5-5`.
 
-Learning goal (spec §Assumptions): every library touchpoint carries a one-line `// learn:` comment, and the graph wiring fits in one file that can be read in one sitting.
+Learning goal (spec §Assumptions): every library touchpoint carries a one-line `// learn:` comment, and the graph wiring fits in one file that can be read in one sitting. *Superseded 2026-11-13 (PR review)*: the learning pass is done and the `learn:` comments are removed.
 
 ## Technical Context
 
@@ -42,7 +42,7 @@ Also bump the existing `zod` 4.4.3 → 4.6.7 (security advisory GHSA-mrhx-c7xc-m
 - Tracing on by default, can be switched off, and runs untraced with a warning when its key is missing (FR-014).
 - Lists over 200 items skip the AI step (research §R6).
 
-**Scale/Scope**: Single user in practice, multi-user-safe by design. One AI call per submission.
+**Scale/Scope**: Single user in practice, multi-user-safe by design. One AI call per submission. *Superseded 2026-11-13 (PR review)*: at most three model calls (two retries after answers of the wrong shape).
 
 ## Constitution Check
 
@@ -90,8 +90,9 @@ src/
 │   └── render-sorted-list.ts         # headings + lines → reply text
 ├── categorizer/                      # NEW: the ONLY place for langchain + provider packages
 │   ├── types.ts                      # ItemCategorizer interface (no vendor imports)
-│   ├── categorizer-prompt.ts         # system prompt + numbered, delimited user message
-│   └── agent-categorizer.ts          # initChatModel + createAgent + responseFormat (zod)
+│   ├── categorizer-prompt.ts         # system prompt + JSON-encoded, delimited user message
+│   ├── categorizer-answer-schema.ts  # zod schema of the answer the model must return
+│   └── agent-backed-categorizer.ts   # initChatModel + createAgent + responseFormat (zod)
 ├── shopping-list/
 │   ├── handle-list-submission.ts     # CHANGED: guard + metadata checks, then graph.invoke
 │   ├── recognize-list.ts             # MOVED from the handler: budget, download, OCR
@@ -110,7 +111,8 @@ evals/                                # NEW: operator-only, never run by `npm te
 
 tests/
 ├── unit/list-sorting.spec.ts         # NEW
-├── contract/agent-categorizer.spec.ts# NEW (fakeModel)
+├── unit/categorizer-prompt.spec.ts   # NEW (2026-11-13): no line can close the <list> block
+├── contract/agent-backed-categorizer.spec.ts # NEW (fakeModel)
 ├── contract/list-graph.spec.ts       # NEW (stub categorizer)
 ├── helpers/stub-categorizer.ts       # NEW
 ├── integration/list-sorting.spec.ts  # NEW (Discord stub → sorted reply / fallback)
@@ -130,7 +132,7 @@ Biome zones gain these entries:
 
 The zone sentence in `AGENTS.md` is updated to match.
 
-**Learning comments**: in `list-graph.ts`, `agent-categorizer.ts`, `create-tracer.ts` and `categorize.eval.ts`, plus the `graph.invoke` call in `handle-list-submission.ts`, every library call gets a one-line `// learn:` comment (spec §Assumptions). Example: `// learn: compile() freezes the wiring into a runnable; no checkpointer means state dies after invoke`. They are excluded from the usual "comment only the why" rule and can be removed with one grep.
+**Learning comments**: in `list-graph.ts`, `agent-categorizer.ts`, `create-tracer.ts` and `categorize.eval.ts`, plus the `graph.invoke` call in `handle-list-submission.ts`, every library call gets a one-line `// learn:` comment (spec §Assumptions). Example: `// learn: compile() freezes the wiring into a runnable; no checkpointer means state dies after invoke`. They are excluded from the usual "comment only the why" rule and can be removed with one grep. *Superseded 2026-11-13 (PR review)*: removed.
 
 **Extension points kept open** (spec §Assumptions "Built to extend"):
 - **Shop order:** enters the graph as state input `shopOrder`. Today the handler fills it from `DEFAULT_SHOP_ORDER`; later a `chooseStore` node or a store lookup fills it.
@@ -143,7 +145,7 @@ The zone sentence in `AGENTS.md` is updated to match.
 | Violation | Why Needed | Simpler Alternative Rejected Because |
 |-----------|------------|-------------------------------------|
 | LangGraph `StateGraph` for a 4-step linear flow with 2 branches | The maintainer's explicit learning goal (spec §Assumptions). It's also the foundation the next features need: a chat path, a checkpointer for conversations, and a store for per-store orders. | Plain sequential `await`s would be fine for this feature alone, but would be thrown away when the chat/agent path arrives, which the spec forbids ("built to extend, not to replace"). |
-| `createAgent` with no tools instead of one `model.withStructuredOutput()` call | Learning goal, plus the next feature adds tools to the same agent. `createAgent` also re-asks the model when its structured answer fails the schema, which a bare call does not. | A bare structured-output call would need re-plumbing into an agent once tools arrive; the difference today is ~5 lines. |
+| `createAgent` with no tools instead of one `model.withStructuredOutput()` call | Learning goal, plus the next feature adds tools to the same agent. `createAgent` also re-asks the model when its structured answer fails the schema, which a bare call does not (capped at three model calls per list, 2026-11-13). | A bare structured-output call would need re-plumbing into an agent once tools arrive; the difference today is ~5 lines. |
 
 ## Post-Design Constitution Re-check
 

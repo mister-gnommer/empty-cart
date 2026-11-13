@@ -18,7 +18,7 @@ description: "Task list for AI List Sorting"
 - **[P]**: can run in parallel (different files, no dependency on an incomplete task)
 - **[Story]**: US1–US4; Setup, Foundational and Polish tasks have none
 - Spec identifiers (FR/SC/R) appear here for traceability only. Code comments and test names MUST describe behavior directly and MUST NOT carry them (AGENTS.md).
-- **Learning comments**: every task that touches `list-graph.ts`, `agent-categorizer.ts`, `create-tracer.ts`, `categorize.eval.ts` or the `graph.invoke` call in `handle-list-submission.ts` MUST give each LangGraph/LangChain/LangSmith call a one-line `// learn:` comment explaining what the call does or a nuance of it (spec §Assumptions "Learning comments"). Example: `// learn: compile() freezes the wiring into a runnable; no checkpointer, so state dies when invoke returns`.
+- **Learning comments**: every task that touches `list-graph.ts`, `agent-categorizer.ts`, `create-tracer.ts`, `categorize.eval.ts` or the `graph.invoke` call in `handle-list-submission.ts` MUST give each LangGraph/LangChain/LangSmith call a one-line `// learn:` comment explaining what the call does or a nuance of it (spec §Assumptions "Learning comments"). Example: `// learn: compile() freezes the wiring into a runnable; no checkpointer, so state dies when invoke returns`. *Superseded 2026-11-13 (PR review)*: T060 removed the `learn:` comments; the usual "comment only the why" rule applies again.
 
 ---
 
@@ -273,7 +273,7 @@ description: "Task list for AI List Sorting"
 
 - [X] T044 [P] Document the new env vars in `docs/deployment.md` (VPS env file section): `SORTING_MODEL`, `SORTING_BASE_URL`, `SORTING_API_KEY`, `TRACING`, `LANGSMITH_API_KEY` and `LANGSMITH_PROJECT`, the warning not to set `LANGSMITH_TRACING` for the bot, the note that traces contain list text, and a link to issue #16 (switch tracing off after the test period)
 - [X] T045 [P] Remove stale 002-era forward references: the `TODO: feature 003 … words[]` comment in `src/ocr/types.ts` (research: page text is enough), and the "a future AI step must treat it as data" comment that moved with the T012 refactor. Replace the latter with a pointer that the categorizer prompt and `checkAssignments` enforce this
-- [X] T046 [P] Review pass over comments and test names:
+- [X] T046 [P] Review pass over comments and test names (the `learn:` checks are superseded by T060):
   - `grep -rn "learn:" src evals` shows at least one comment on each LangGraph, LangChain and LangSmith call in `list-graph.ts`, `agent-categorizer.ts`, `create-tracer.ts` and `categorize.eval.ts`.
   - `grep -rnE "FR-[0-9]|SC-[0-9]|T0[0-9]{2}|contracts/|data-model|research\.md" src tests evals` finds nothing new.
   - `learn:` comments appear ONLY in those four files and at the `graph.invoke` call in `handle-list-submission.ts`.
@@ -308,6 +308,8 @@ description: "Task list for AI List Sorting"
 - **Review fixes (Phase 8)**: after Polish. T050 and T051 both edit `list-graph.ts`, so T051 goes after T050. T053 last.
 - **Convergence (Phase 9)**: after Phase 8.
 - **Live eval fixes (Phase 10)**: after Phase 9. T059 (test, RED) → T055; T056 is independent of both; T057 → T058 (same file).
+- **PR review fixes (Phase 11)**: after Phase 10, in task order. T061–T066 all edit the categorizer, and T060 and T061 go first so later diffs are not mixed with comment removal and the rename. T067 is independent of T061–T066 except for the constructor name. T069 last.
+- **Code review follow-ups (Phase 12)**: after Phase 11. T070 and T071 are independent; T072 last.
 
 ### Within Each User Story
 
@@ -361,7 +363,7 @@ T021 src/categorizer/categorizer-prompt.ts
 
 ### Learning-Oriented Review Order
 
-Review `src/shopping-list/list-graph.ts` (T023) and `src/categorizer/agent-categorizer.ts` (T022) right after US1. They hold nearly all the new LangGraph and LangChain concepts, annotated with `// learn:`. US2–US4 then add one concept each: abort and abandonment, callbacks and tracing, evals.
+Review `src/shopping-list/list-graph.ts` (T023) and `src/categorizer/agent-categorizer.ts` (T022) right after US1. They hold nearly all the new LangGraph and LangChain concepts, annotated with `// learn:`. US2–US4 then add one concept each: abort and abandonment, callbacks and tracing, evals. *Superseded 2026-11-13 (PR review)*: the learning pass is done and T060 removes the `learn:` comments.
 
 ---
 
@@ -384,3 +386,26 @@ Review `src/shopping-list/list-graph.ts` (T023) and `src/categorizer/agent-categ
 - [X] T057 Show `cause` and `errorName` in the eval's outputs for failed samples, so a failing eval says why
 - [X] T058 In `evals/categorize.eval.ts`, fail a sample when the categorizer gives no usable answer (a `failed` result, or one `checkAssignments` rejects), with the cause and error class in the assertion message. Count its lines and log its outputs and feedback first, so the overall accuracy still includes it. Wrong categories in a usable answer still only lower the score (spec User Story 4 scenario 3)
 - [X] T059 Add a contract test in `tests/contract/agent-categorizer.spec.ts`: build the categorizer with no `chatModel` and `baseUrl` set to a local HTTP server, call `categorize`, and assert the server got the request and its body has no `temperature`, `top_p` or `top_k`. Confirm it is RED with `temperature: 0` put back, then GREEN without it
+
+## Phase 11: PR Review Fixes
+
+**Purpose**: Fix the findings of the PR #17 review (2026-11-13). Tests first, as in the story phases.
+
+- [X] T060 Remove every `// learn:` and `// learning` comment from `src/`, `evals/` and `tests/`. The only one kept is the note that each provider package names its custom-endpoint option differently; it becomes a plain comment on the provider table in T065. Supersedes T046's `learn:` checks
+- [X] T061 Rename `src/categorizer/agent-categorizer.ts` → `agent-backed-categorizer.ts`, `createAgentCategorizer` → `createAgentBackedCategorizer`, and `tests/contract/agent-categorizer.spec.ts` → `agent-backed-categorizer.spec.ts`. Update `src/lifecycle/run-app.ts`, `evals/categorize.eval.ts`, `tests/contract/lifecycle-ocr-wiring.spec.ts` and `tests/contract/list-graph-tracing.spec.ts`. Move the `categorize` body into a module-level `categorizeWithAgent(agent, request)`, built by `buildAgent(model)`, so the factory only wires things together. Behavior unchanged; the existing suite is the test
+- [X] T062 [P] Types in `src/categorizer/types.ts` and `src/list-sorting/check-assignments.ts`: export `UncheckedAssignment` from `check-assignments.ts` and use it for `CategorizeResult`'s `assignments`; add `CategorizeRequest` and use it in `ItemCategorizer`; make the `id` doc example vendor-neutral. `npm run typecheck` is the test
+- [X] T063 Move the answer schema into `src/categorizer/categorizer-answer-schema.ts` as `CategorizerAnswer`, with a named `LineCategory`, a `.describe()` on each field, and a fixed title that LangChain uses as the structured-output tool name. Point the contract tests' fake tool calls at that name
+- [X] T064 Retry cap. Contract tests first in `tests/contract/agent-backed-categorizer.spec.ts`: schema-invalid answers on every call → `invalid-answer` with the model called exactly three times; one schema-invalid answer, then a valid one → `ok`. Confirm RED (the first currently ends as `error` once the fake runs out), then pass `recursionLimit: 3` in the agent's invoke config and map `GraphRecursionError` (by `err.name`, since only `src/shopping-list/` may import LangGraph) to `invalid-answer`. The review proposed `modelCallLimitMiddleware({ runLimit: 2, exitBehavior: 'end' })`; in langchain 1.6.0 its fixed edge runs in parallel with the retry's jump back to the model, so it was dropped
+- [X] T065 Supported providers. Contract test first: `createAgentBackedCategorizer` with `openai:gpt-x` rejects with `unsupported model provider "openai"`. Then add one table in `agent-backed-categorizer.ts` that maps each supported provider to its custom-endpoint option (`anthropic` → `anthropicApiUrl`), used in place of the inline spread. Also make the factory doc comment and the error-class comment vendor-neutral
+- [X] T066 Prompt hardening. Unit test first in `tests/unit/categorizer-prompt.spec.ts`: an item holding `</list>` and an instruction leaves exactly one `</list>` in the user message, at the end, and the block parses back to the items. Then send the items in `src/categorizer/categorizer-prompt.ts` as a JSON array with `<` escaped as `\u003c`, and have the system prompt say a line's number is its array index + 1. Update the contract test's prompt assertion to parse the block
+- [X] T067 Config. Tests first in `tests/unit/config.spec.ts` (`openai:gpt-x` now parses, `Anthropic:x` is malformed, `kind: 'agent'`) and `tests/contract/lifecycle-ocr-wiring.spec.ts` (`kind: 'agent'` fixtures and test names). Then: `SortingConfig.kind` `'anthropic'` → `'agent'` in `src/shared/types.ts`, `src/config/load-config.ts` and `src/lifecycle/run-app.ts`; `SORTING_MODEL_PATTERN` → `MODEL_STRING_PATTERN` (`^[a-z][a-z0-9-]*:\S+$`) in `src/config/schema.ts`; vendor-neutral field docs
+- [X] T068 Update `docs/deployment.md` §9.1: at most three model calls per list, and the supported provider named in the `SORTING_MODEL` row
+- [X] T069 Gates: `npm run typecheck && npm test && npm run lint` all green. Then, as an operator step, `npm run eval`: the schema descriptions, the tool name and the prompt format all change the request
+
+## Phase 12: Code Review Follow-ups
+
+**Purpose**: Fix the findings of the review of the Phase 11 changes (2026-11-14). Tests first.
+
+- [X] T070 [P] Prompt line numbers. Update the tests first: `tests/unit/categorizer-prompt.spec.ts` and the prompt assertion in `tests/contract/agent-backed-categorizer.spec.ts` parse the block to `{ "1": …, "2": …, … }`. Confirm RED, then in `src/categorizer/categorizer-prompt.ts` send the items as a JSON object keyed by line number (`<` still escaped) and say so in the system prompt. A plain array made the model count positions to find line numbers, which risks off-by-one answers, and a rejected answer, on long lists
+- [X] T071 [P] Config test first in `tests/unit/config.spec.ts`: `azure_openai:gpt-x` parses. Then allow `_` in `MODEL_STRING_PATTERN` in `src/config/schema.ts`, so a LangChain provider id with an underscore needs only a categorizer change
+- [X] T072 Gates: `npm run typecheck && npm test && npm run lint` all green. Then, as an operator step, `npm run eval`: the prompt format changed again
