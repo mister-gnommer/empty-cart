@@ -40,6 +40,7 @@ async function loadAppWithMocks(opts: {
   bootLogger?: unknown;
   bootstrapLoggerThrows?: boolean;
   emergencyLoggerThrows?: boolean;
+  tracerFlushImpl?: () => Promise<void>;
 }) {
   const cap = makeCapturingLogger();
 
@@ -119,9 +120,17 @@ async function loadAppWithMocks(opts: {
     },
   }));
 
+  // Mock tracer: no callbacks, a flush the test can hold open.
+  const tracerFlush = vi.fn(async () => {
+    if (opts.tracerFlushImpl) await opts.tracerFlushImpl();
+  });
+
   vi.doMock('../../src/config/load-config', () => ({
     loadConfig: loadConfigMock,
     ConfigError,
+  }));
+  vi.doMock('../../src/tracing/create-tracer', () => ({
+    createTracer: vi.fn(() => ({ callbacks: [], flush: tracerFlush })),
   }));
   vi.doMock('../../src/logger/create-logger', () => ({
     createLogger: createLoggerMock,
@@ -148,6 +157,7 @@ async function loadAppWithMocks(opts: {
     createDiscordAdapterMock,
     adapterStop,
     healthStop,
+    tracerFlush,
     runApp,
   };
 }
@@ -297,6 +307,38 @@ describe('lifecycle contract', () => {
       // Release the hang and let the race complete.
       resolveStop();
       await exited;
+    });
+  });
+
+  describe('pending traces on shutdown', () => {
+    it('SIGTERM → pending traces are flushed before "shutdown complete"', async () => {
+      const env = await loadAppWithMocks({});
+      const p = env.runApp();
+      const exited = expect(p).rejects.toThrow(/process\.exit/);
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
+      await dispatchSignal(SIGTERM);
+      await exited;
+      expect(env.tracerFlush).toHaveBeenCalledTimes(1);
+      expect(env.cap.lines.find((l) => l.msg === 'shutdown complete')).toBeDefined();
+      expect(exitCalls).toEqual([0]);
+    });
+
+    it('a flush that hangs cannot block exit, and lost traces are not a failed shutdown → exit 0 after the budget', async () => {
+      const env = await loadAppWithMocks({
+        tracerFlushImpl: () => new Promise<void>(() => undefined),
+        loadConfigImpl: () => makeConfig({ shutdownTimeoutMs: 50 }),
+      });
+      const p = env.runApp();
+      const exited = expect(p).rejects.toThrow(/process\.exit/);
+      await new Promise((r) => setImmediate(r));
+      await new Promise((r) => setImmediate(r));
+      process.emit(SIGTERM, SIGTERM);
+      await new Promise((r) => setTimeout(r, 200));
+      await exited;
+      expect(env.cap.lines.find((l) => l.msg === 'shutdown complete')).toBeDefined();
+      expect(env.cap.lines.find((l) => l.msg === 'shutdown budget exceeded')).toBeUndefined();
+      expect(exitCalls).toEqual([0]);
     });
   });
 

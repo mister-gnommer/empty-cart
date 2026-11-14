@@ -28,9 +28,19 @@ describe('logger', () => {
       expect(line).not.toContain('"x"');
     });
 
-    it('deep-nested differently-named secret { app: { bot: { apiKey: "x" } } } documents the backstop LIMIT: redaction does NOT cover it (no Secrets object may be passed to log)', () => {
+    it('a logged config object redacts both AI keys (sorting.apiKey and tracing.apiKey)', () => {
       const { logger, chunks } = makeStreamLogger('info');
-      logger.info({ app: { bot: { apiKey: 'x' } } }, 'msg');
+      logger.info({ config: { sorting: { apiKey: 'sk-x' }, tracing: { apiKey: 'ls-x' } } }, 'msg');
+      logger.info({ sorting: { apiKey: 'sk-y' } }, 'msg');
+      const line = JSON.stringify(chunks());
+      expect(line).not.toContain('sk-x');
+      expect(line).not.toContain('ls-x');
+      expect(line).not.toContain('sk-y');
+    });
+
+    it('deep-nested differently-named secret { app: { bot: { password: "x" } } } documents the backstop LIMIT: redaction does NOT cover it (no Secrets object may be passed to log)', () => {
+      const { logger, chunks } = makeStreamLogger('info');
+      logger.info({ app: { bot: { password: 'x' } } }, 'msg');
       const line = JSON.stringify(chunks()[0]);
       // The contract's stated limitation: redaction does NOT cover depth-4+
       // secrets with different names. The test asserts the value appears

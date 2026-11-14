@@ -1,7 +1,7 @@
 {
   "$schema": "https://biomejs.dev/schemas/2.5.6/schema.json",
   "files": {
-    "includes": ["src/**/*.ts", "tests/**/*.ts", "*.config.*", "*.json"]
+    "includes": ["src/**/*.ts", "tests/**/*.ts", "evals/**/*.ts", "*.config.*", "*.json"]
   },
   "formatter": {
     "indentStyle": "space",
@@ -28,8 +28,35 @@
               "discord.js": "Only src/discord may import discord.js.",
               "pino": "Only src/config and src/logger may import pino.",
               "zod": "Only src/config may import zod.",
-              "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-            }
+              "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+              "langchain": "Only src/categorizer may import langchain.",
+              "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+              "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+              "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+              "langsmith": "Only src/tracing may import langsmith."
+            },
+            "patterns": [
+              {
+                "group": ["langchain/**"],
+                "message": "Only src/categorizer may import langchain."
+              },
+              {
+                "group": ["@langchain/core/**"],
+                "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+              },
+              {
+                "group": ["@langchain/anthropic/**"],
+                "message": "Only src/categorizer may import @langchain/anthropic."
+              },
+              {
+                "group": ["@langchain/langgraph/**"],
+                "message": "Only src/shopping-list may import @langchain/langgraph."
+              },
+              {
+                "group": ["langsmith/**"],
+                "message": "Only src/tracing may import langsmith."
+              }
+            ]
           }
         }
       }
@@ -46,8 +73,35 @@
               "options": {
                 "paths": {
                   "zod": "Only src/config may import zod.",
-                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-                }
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -64,8 +118,35 @@
               "options": {
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
-                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-                }
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -83,8 +164,35 @@
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
                   "zod": "Only src/config may import zod.",
-                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-                }
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -102,8 +210,35 @@
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
                   "zod": "Only src/config may import zod.",
-                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-                }
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -121,8 +256,35 @@
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
                   "zod": "Only src/config may import zod.",
-                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-                }
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -140,8 +302,35 @@
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
                   "zod": "Only src/config may import zod.",
-                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-                }
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -159,8 +348,35 @@
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
                   "zod": "Only src/config may import zod.",
-                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision."
-                }
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -178,8 +394,35 @@
                 "paths": {
                   "discord.js": "Only src/discord may import discord.js.",
                   "pino": "Only src/config and src/logger may import pino.",
-                  "zod": "Only src/config may import zod."
-                }
+                  "zod": "Only src/config may import zod.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/core": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/core/**"],
+                    "message": "Only src/categorizer, src/tracing and (type-only) src/shopping-list may import @langchain/core."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
               }
             }
           }
@@ -187,7 +430,111 @@
       }
     },
     {
-      "includes": ["*.config.*", "tests/**", "vitest.*"],
+      "includes": ["src/categorizer/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "pino": "Only src/config and src/logger may import pino.",
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/shopping-list/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "pino": "Only src/config and src/logger may import pino.",
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "langsmith": "Only src/tracing may import langsmith."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["langsmith/**"],
+                    "message": "Only src/tracing may import langsmith."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["src/tracing/**"],
+      "linter": {
+        "rules": {
+          "style": {
+            "noRestrictedImports": {
+              "level": "error",
+              "options": {
+                "paths": {
+                  "discord.js": "Only src/discord may import discord.js.",
+                  "pino": "Only src/config and src/logger may import pino.",
+                  "zod": "Only src/config may import zod.",
+                  "@google-cloud/vision": "Only src/ocr/google-vision may import @google-cloud/vision.",
+                  "langchain": "Only src/categorizer may import langchain.",
+                  "@langchain/anthropic": "Only src/categorizer may import @langchain/anthropic.",
+                  "@langchain/langgraph": "Only src/shopping-list may import @langchain/langgraph."
+                },
+                "patterns": [
+                  {
+                    "group": ["langchain/**"],
+                    "message": "Only src/categorizer may import langchain."
+                  },
+                  {
+                    "group": ["@langchain/anthropic/**"],
+                    "message": "Only src/categorizer may import @langchain/anthropic."
+                  },
+                  {
+                    "group": ["@langchain/langgraph/**"],
+                    "message": "Only src/shopping-list may import @langchain/langgraph."
+                  }
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "includes": ["*.config.*", "tests/**", "evals/**", "vitest.*"],
       "linter": {
         "rules": {
           "style": {

@@ -14,10 +14,12 @@ const TEST_CONFIG: Config = {
   ocrProvider: { kind: 'none' },
   ocrLanguageHints: [],
   ocrChannelAllowlist: null,
+  sorting: { kind: 'none' },
+  tracing: { kind: 'off', reason: 'disabled' },
 };
 
 /**
- * Builds a valid test config, with recognition disabled and every channel processed by default.
+ * Builds a valid test config, with recognition, sorting and tracing disabled and every channel processed by default.
  * @param overrides fields the suite cares about
  */
 export function makeConfig(overrides: Partial<Config> = {}): Config {

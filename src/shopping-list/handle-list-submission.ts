@@ -1,22 +1,22 @@
-// List-submission orchestrator — pure composition of the image and OCR
-// contracts. No vendor imports, no transport knowledge, no persistence:
-// this module only sequences downloads and recognitions, assembles the
-// reply, and logs content-free transitions.
+// List-submission orchestrator — guards each submission, then runs the list
+// graph (recognize → categorize → sort). No vendor imports, no transport
+// knowledge, no persistence; logs content-free transitions only.
 
 import {
   ACCEPTED_CONTENT_TYPES,
   type fetchAndValidateImage,
   MAX_IMAGE_BYTES,
 } from '../image/fetch-image';
+import type { BaseCallbackHandler } from '@langchain/core/callbacks/base';
+import type { ItemCategorizer } from '../categorizer/types';
+import { DEFAULT_SHOP_ORDER } from '../list-sorting/category-catalog';
 import { childFor, type Logger } from '../logger/create-logger';
 import type { OcrProvider } from '../ocr/types';
+import { buildListGraph, type ListGraph } from './list-graph';
 import { LIST_MESSAGES } from './messages';
+import { recognizeList, replyFor } from './recognize-list';
 
-/** Hard ceiling for one submission across ALL its images — a module constant, NOT config. */
-export const SUBMISSION_BUDGET_MS = 25_000;
-
-/** Operator-facing failure classes; the user only ever sees the mapped LIST_MESSAGES text. */
-type FailureReason = 'too-large' | 'unsupported' | 'unretrievable' | 'provider-unavailable';
+export { SUBMISSION_BUDGET_MS } from './recognize-list';
 
 export type SubmissionAttachment = {
   url: string;
@@ -40,21 +40,16 @@ type ListSubmissionDeps = {
   provider: OcrProvider;
   fetchImage: typeof fetchAndValidateImage;
   languageHints: readonly string[];
+  /** null = sorting off: the reply is the verbatim recognized text. */
+  categorizer: ItemCategorizer | null;
+  /** Tracing callbacks for every run; empty = untraced. */
+  callbacks: BaseCallbackHandler[];
   logger: Logger;
   /** Test seam; production = Date.now. */
   now?: () => number;
 };
 
-type ResolvedDeps = ListSubmissionDeps & { now: () => number };
-
-/** Per-submission state shared by the processing phases once the busy guard is held. */
-type SubmissionRun = {
-  deps: ResolvedDeps;
-  log: Logger;
-  startedAt: number;
-  deadline: number;
-  budgetExpiry: AbortSignal;
-};
+type ResolvedDeps = ListSubmissionDeps & { now: () => number; graph: ListGraph };
 
 /**
  * Metadata-only pre-check over ALL attachments, in message order — no
@@ -77,102 +72,20 @@ function findMetadataRejection(
   return null;
 }
 
-function replyFor(reason: FailureReason): ListReply {
-  switch (reason) {
-    case 'too-large':
-      return { text: LIST_MESSAGES.imageTooLarge };
-    case 'unsupported':
-      return { text: LIST_MESSAGES.unsupportedFormat };
-    case 'unretrievable':
-    case 'provider-unavailable':
-      return { text: LIST_MESSAGES.serviceUnavailable };
-  }
-}
-
-const BUDGET_EXPIRED = Symbol('budget-expired');
-
-/**
- * Settles with the work's outcome, or with BUDGET_EXPIRED as soon as the
- * budget signal fires. A callee that ignores the signal is abandoned rather
- * than awaited, so it can never wedge the submission or its busy-guard entry.
- * @param work the download or recognition to wait for
- * @param budgetExpiry fires when the submission's time budget runs out
- */
-function unlessExpired<T>(
-  work: Promise<T>,
-  budgetExpiry: AbortSignal,
-): Promise<T | typeof BUDGET_EXPIRED> {
-  if (budgetExpiry.aborted) {
-    // The abandoned work may still reject later; observe it so that can never
-    // surface as an unhandled rejection.
-    work.catch(() => undefined);
-    return Promise.resolve(BUDGET_EXPIRED);
-  }
-  return new Promise((resolve, reject) => {
-    const onAbort = (): void => resolve(BUDGET_EXPIRED);
-    budgetExpiry.addEventListener('abort', onAbort, { once: true });
-    work.then(
-      (value) => {
-        budgetExpiry.removeEventListener('abort', onAbort);
-        resolve(value);
-      },
-      (err: unknown) => {
-        budgetExpiry.removeEventListener('abort', onAbort);
-        reject(err);
-      },
-    );
-  });
-}
-
-const FETCH_FAILURE_REASON = {
-  'too-large': 'too-large',
-  'unsupported-format': 'unsupported',
-  unretrievable: 'unretrievable',
-} as const satisfies Record<string, FailureReason>;
-
-/**
- * Logs a submission that ran out of budget and returns the generic reply.
- * @param run the submission in progress
- * @param position index of the image being processed when the budget ran out
- * @param extra additional log fields
- */
-function cancelled(
-  run: SubmissionRun,
-  position: number,
-  extra: Record<string, unknown> = {},
-): ListReply {
-  run.log.warn({
-    msg: 'list submission cancelled',
-    elapsedMs: run.deps.now() - run.startedAt,
-    position,
-    ...extra,
-  });
-  return { text: LIST_MESSAGES.serviceUnavailable };
-}
-
-/**
- * Logs a classified failure and returns the user-facing reply for it.
- * @param run the submission in progress
- * @param reason the failure class, mapped to the user-facing message
- * @param extra additional log fields
- */
-function failed(
-  run: SubmissionRun,
-  reason: FailureReason,
-  extra: Record<string, unknown>,
-): ListReply {
-  run.log.warn({ msg: 'list submission failed', reason, ...extra });
-  return replyFor(reason);
-}
-
 /**
  * Builds the per-user list-submission handler. The returned handler holds
  * the busy guard; all per-submission work lives in the functions below.
- * @param deps OCR provider, image fetcher, language hints, logger and clock
+ * @param deps OCR provider, image fetcher, language hints, categorizer, logger and clock
  * @returns the handler to call once per user message carrying list photos
  */
 export function createListSubmissionHandler(deps: ListSubmissionDeps): ListSubmissionHandler {
-  const resolvedDeps: ResolvedDeps = { ...deps, now: deps.now ?? Date.now };
+  const now = deps.now ?? Date.now;
+  const graph = buildListGraph({
+    recognize: (attachments, log) => recognizeList({ ...deps, now }, log, attachments),
+    categorizer: deps.categorizer,
+    now,
+  });
+  const resolvedDeps: ResolvedDeps = { ...deps, now, graph };
   // Busy guard: userId → correlationId of the submission in flight. The ONLY
   // shared mutable state; entries are always released in `finally`.
   const inFlight = new Map<string, string>();
@@ -227,7 +140,7 @@ async function handleSubmission(
   }
   inFlight.set(input.userId, input.correlationId);
   try {
-    return await recognizeAll(deps, log, input.attachments);
+    return await processList(deps, log, input);
   } catch (err) {
     // Unstructured outcomes never leak: any throw becomes the generic reply.
     log.error({
@@ -242,150 +155,53 @@ async function handleSubmission(
 }
 
 /**
- * Downloads and recognizes every attachment in message order under one shared
- * time budget, stopping at the first failure or when the budget runs out.
- * @param deps the handler's dependencies with the clock resolved
+ * Runs the list graph and returns its reply. Runs that ended during
+ * recognition were already logged there; the rest are logged here, once.
+ * @param deps the handler's dependencies with the clock and graph resolved
  * @param log logger bound to the submission's correlation id
- * @param attachments the attachments that passed the metadata checks
- * @returns the assembled list text, or the reply for whatever stopped the run
+ * @param input the submission, whose attachments passed the metadata checks
  */
-async function recognizeAll(
+async function processList(
   deps: ResolvedDeps,
   log: Logger,
-  attachments: readonly SubmissionAttachment[],
+  input: ListSubmissionInput,
 ): Promise<ListReply> {
-  // 3. One shared budget for every image of the submission, anchored at
-  //    guard acquisition. Abandonment is client-side only — there is no
-  //    remote cancellation.
+  const { attachments } = input;
   const startedAt = deps.now();
-  // The `now()` deadline sizes each provider timeout; this timer is the hard
-  // stop that aborts the download and abandons any callee still outstanding.
-  const budgetExpiry = new AbortController();
-  const budgetTimer = setTimeout(() => budgetExpiry.abort(), SUBMISSION_BUDGET_MS);
-  const run: SubmissionRun = {
-    deps,
-    log,
-    startedAt,
-    deadline: startedAt + SUBMISSION_BUDGET_MS,
-    budgetExpiry: budgetExpiry.signal,
-  };
-
-  // Only per-image page texts are accumulated — bytes and recognition
-  // metadata stay scoped to recognizeOne and are dropped when it returns
-  // (no retention after the reply is computed).
-  const pageTexts: string[] = [];
-  try {
-    for (let position = 0; position < attachments.length; position += 1) {
-      const outcome = await recognizeOne(run, attachments[position], position);
-      if (typeof outcome !== 'string') {
-        return outcome;
-      }
-      pageTexts.push(outcome);
-    }
-    return assembleReply(run, pageTexts);
-  } finally {
-    clearTimeout(budgetTimer);
-  }
-}
-
-/**
- * Downloads one attachment and runs OCR on it within the remaining budget.
- * @param run the submission in progress
- * @param attachment the image to download and recognize
- * @param position the attachment's index in the message, used in logs
- * @returns the recognized page text, or the reply that ends the submission
- */
-async function recognizeOne(
-  run: SubmissionRun,
-  attachment: SubmissionAttachment,
-  position: number,
-): Promise<string | ListReply> {
-  const { deps, log, deadline, budgetExpiry } = run;
-  if (deadline - deps.now() <= 0) {
-    return cancelled(run, position);
-  }
-  const fetched = await unlessExpired(
-    deps.fetchImage({
-      url: attachment.url,
-      reportedSize: attachment.reportedSize,
-      reportedContentType: attachment.reportedContentType,
-      signal: budgetExpiry,
-    }),
-    budgetExpiry,
+  const state = await deps.graph.invoke(
+    { shopOrder: [...DEFAULT_SHOP_ORDER] },
+    {
+      context: { log, attachments },
+      callbacks: deps.callbacks,
+      runName: 'list-submission',
+      metadata: { correlationId: input.correlationId },
+    },
   );
-  if (fetched === BUDGET_EXPIRED) {
-    return cancelled(run, position);
+  if (state.reply === null) {
+    // Unreachable: every path to END sets the reply. Caught by the catch-all.
+    throw new Error('list graph finished without a reply');
   }
-  if (fetched.status !== 'ok') {
-    return failed(run, FETCH_FAILURE_REASON[fetched.status], { position, stage: 'download' });
-  }
-  log.info({
-    msg: 'image submitted',
-    position,
-    sizeBytes: fetched.sizeBytes,
-    format: fetched.format,
-  });
-
-  const timeoutMs = deadline - deps.now();
-  if (timeoutMs <= 0) {
-    return cancelled(run, position);
-  }
-  const result = await unlessExpired(
-    deps.provider.recognize({
-      image: { bytes: fetched.bytes, format: fetched.format },
-      languageHints: deps.languageHints,
-      timeoutMs,
-    }),
-    budgetExpiry,
-  );
-  if (result === BUDGET_EXPIRED) {
-    return cancelled(run, position, { providerId: deps.provider.id });
-  }
-  if (result.status !== 'ok') {
-    // Nested, not spread: vendor keys must never shadow our own log fields.
-    const providerFields = {
-      providerId: deps.provider.id,
-      ...(result.logContext === undefined ? {} : { providerLogContext: result.logContext }),
-    };
-    if (result.status === 'undecodable-image') {
-      return failed(run, 'unsupported', { position, ...providerFields });
-    }
-    if (result.cause === 'deadline-exceeded') {
-      return cancelled(run, position, providerFields);
-    }
-    return failed(run, 'provider-unavailable', {
-      position,
-      cause: result.cause,
-      ...providerFields,
-    });
-  }
-  log.info({ msg: 'image recognized', position, textLength: result.text.length });
-  return result.text;
-}
-
-/**
- * Joins the recognized pages into the reply and logs the successful outcome.
- * @param run the submission in progress
- * @param pageTexts per-image texts in attachment order
- */
-function assembleReply(run: SubmissionRun, pageTexts: readonly string[]): ListReply {
-  // Blank pages are dropped; the rest go out verbatim, in order, one newline apart.
-  // Recognized text is untrusted: a future AI step must treat it as data, never instructions.
-  const readablePages = pageTexts.filter((page) => page.trim().length > 0);
-  const elapsedMs = run.deps.now() - run.startedAt;
-  if (readablePages.length === 0) {
-    run.log.info({
+  if (state.readablePages.length > 0) {
+    log.info({
       msg: 'list submission succeeded',
-      imageCount: pageTexts.length,
-      elapsedMs,
-      outcome: 'no-readable-text',
+      imageCount: attachments.length,
+      elapsedMs: deps.now() - startedAt,
+      sorting: sortingOutcome(state),
     });
-    return { text: LIST_MESSAGES.noReadableText };
   }
-  run.log.info({
-    msg: 'list submission succeeded',
-    imageCount: pageTexts.length,
-    elapsedMs,
-  });
-  return { text: readablePages.join('\n') };
+  return { text: state.reply };
+}
+
+/**
+ * Summarizes what the AI step did for the outcome log line.
+ * @param state the final graph state of a run that got past recognition
+ */
+function sortingOutcome(state: {
+  categories: readonly unknown[] | null;
+  sortingFailure: string | null;
+}): 'sorted' | 'fallback' | 'off' {
+  if (state.categories !== null) {
+    return 'sorted';
+  }
+  return state.sortingFailure === null ? 'off' : 'fallback';
 }

@@ -1,4 +1,4 @@
-// Logger — pino NDJSON to stdout, redact.paths covering discordToken and the
+// Logger — pino NDJSON to stdout, redact.paths covering discordToken, the AI API keys and the
 // documented token shapes. Default destination is
 // SonicBoom (`sync: false`); SonicBoom registers a `process.on('exit')` handler
 // that sync-flushes the buffer before the process terminates, and pino's
@@ -11,7 +11,15 @@ import type { Config } from '../shared/types';
 // their injected logger without importing pino themselves.
 export type { Logger };
 
-export const REDACT_PATHS = ['discordToken', '*.discordToken', '*.token', 'token', '*.*.token'];
+export const REDACT_PATHS = [
+  'discordToken',
+  '*.discordToken',
+  '*.token',
+  'token',
+  '*.*.token',
+  '*.apiKey',
+  '*.*.apiKey',
+];
 const REDACT_CENSOR = '[Redacted]';
 
 export function createLogger(config: Pick<Config, 'logLevel'>): Logger {

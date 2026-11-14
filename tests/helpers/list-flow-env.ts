@@ -4,6 +4,8 @@
 // nothing here reaches an external service.
 import type { Client } from 'discord.js';
 import { vi } from 'vitest';
+import type { BaseCallbackHandler } from '@langchain/core/callbacks/base';
+import type { ItemCategorizer } from '../../src/categorizer/types';
 import { createDiscordAdapter, type DiscordAdapterDeps } from '../../src/discord/adapter';
 import { handleEchoCommand } from '../../src/echo/handle-echo';
 import { fetchAndValidateImage } from '../../src/image/fetch-image';
@@ -87,13 +89,16 @@ export type ListFlowEnv = {
 /**
  * Wires the real list flow around the given provider. The caller owns
  * stopping the adapter.
- * @param opts logger replaces the capturing logger (cap then stays empty)
+ * @param opts logger replaces the capturing logger (cap then stays empty);
+ *   categorizer defaults to null (sorting off); callbacks to none (untraced)
  */
 export function buildListFlowEnv(opts: {
   provider: OcrProvider;
   fetchEntries: ScriptedFetchEntry[];
   config?: Config;
   logger?: DiscordAdapterDeps['logger'];
+  categorizer?: ItemCategorizer | null;
+  callbacks?: BaseCallbackHandler[];
 }): ListFlowEnv {
   const cap = makeCapturingLogger();
   // Safe: the capturing logger satisfies pino's Logger call surface
@@ -106,6 +111,8 @@ export function buildListFlowEnv(opts: {
     provider: opts.provider,
     fetchImage: (fetchInput) => fetchAndValidateImage(fetchInput, scriptedFetch.fetchImpl),
     languageHints: config.ocrLanguageHints,
+    categorizer: opts.categorizer ?? null,
+    callbacks: opts.callbacks ?? [],
     logger,
     now: Date.now,
   });

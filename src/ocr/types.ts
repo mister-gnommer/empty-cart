@@ -19,8 +19,6 @@ export type UnavailableCause =
 export type ProviderLogContext = Readonly<Record<string, string | number | null>>;
 
 export type OcrProviderResult =
-  // TODO: feature 003 (AI list interpretation) adds a flat words[] list with
-  // per-word confidence here, designed together with the AI step.
   | {
       status: 'ok';
       /** Whole-page text in the provider's own line-break semantics, never altered. */
