@@ -1,24 +1,20 @@
 <!--
 Sync Impact Report
 ==================
-Version change: 1.4.0 → 1.5.0
+Version change: 1.5.0 → 1.6.0
 Modified principles: none
 Modified constraints: none
-Modified workflow: Development Workflow item 7 "Validate on VPS" replaced with
-  "Validate within the branch, deploy after merge" — a feature's tasks.md MUST
-  NOT deploy the feature branch to the VPS or run live smoke tests against it;
-  all pre-merge validation MUST be achievable within the branch; VPS
-  deployment and smoke testing happen once, after merge to main. Added
-  optional sub-point permitting a post-merge validation runbook when scope
-  justifies it, authored after merge, not as a pre-merge artifact.
+Modified workflow: Added Development Workflow item 8 "Docs describe the
+  current state" — a change MUST update the operator and contributor docs it
+  affects in the same unit of work, folding new facts into the section they
+  belong to instead of appending per-feature chapters; history stays in git,
+  specs/ and dated decision records.
 Added sections: none
 Removed sections: none
 Templates requiring updates:
   - .specify/templates/plan-template.md      ✅ no update needed
   - .specify/templates/spec-template.md       ✅ no update needed
-  - .specify/templates/tasks-template.md     ✅ no update needed (no VPS/smoke
-    test references found; the prior guidance came from the constitution's
-    now-amended item 7, not the template)
+  - .specify/templates/tasks-template.md     ✅ no update needed
 Follow-up TODOs: none
 -->
 
@@ -156,6 +152,16 @@ amendment when scope changes, but MUST hold until then.
      prepared. This runbook MUST be authored after the feature is merged into
      `main`, not as part of the feature branch's `tasks.md` or other
      pre-merge artifacts.
+8. **Docs describe the current state**: A change MUST update, in the same
+   unit of work, every non-spec doc it affects (`README.md`, `docs/`,
+   `.env.example`, `AGENTS.md`). These docs describe how the application works
+   and is operated *now*, not how it got there:
+   - New facts MUST be folded into the section they belong to (e.g. a new
+     environment variable joins the single variable reference and sample env
+     file), never appended as a per-feature chapter or "added in" note.
+   - Superseded text MUST be rewritten or removed, not left beside the new.
+   - History belongs in git, `specs/`, and dated decision records
+     (`docs/DEV_NOTES.md`); spec documents are exempt from this rule.
 
 ### Supplementary Discovery Artifacts & Precedence
 
@@ -219,4 +225,4 @@ conflicts with it, the constitution wins.
 - **Runtime guidance**: When day-to-day development guidance is needed, prefer
   the AGENTS.md file at the repository root over ad-hoc decisions.
 
-**Version**: 1.5.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-09-25
+**Version**: 1.6.0 | **Ratified**: 2026-07-21 | **Last Amended**: 2026-11-15
